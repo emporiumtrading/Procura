@@ -226,8 +226,32 @@ class ProcuraAPI {
         return this.request<any>('POST', `/connectors/${id}/test`);
     }
 
+    async createConnector(data: {
+        name: string;
+        label?: string;
+        portal_url?: string;
+        auth_type: string;
+        credentials: Record<string, string>;
+        schedule_cron?: string;
+        rate_limit_per_min?: number;
+    }) {
+        return this.request<any>('POST', '/connectors', data);
+    }
+
     async updateConnector(id: string, data: any) {
         return this.request<any>('PATCH', `/connectors/${id}`, data);
+    }
+
+    async rotateConnectorCredentials(id: string, newCredentials: Record<string, string>) {
+        return this.request<any>('POST', `/connectors/${id}/rotate`, newCredentials);
+    }
+
+    async revokeConnector(id: string) {
+        return this.request<any>('DELETE', `/connectors/${id}`);
+    }
+
+    async getConnectorRuns(id: string, limit: number = 50) {
+        return this.request<any>('GET', `/connectors/${id}/runs?limit=${limit}`);
     }
 
     // ============================================
@@ -293,6 +317,10 @@ class ProcuraAPI {
         return this.request<any>('GET', '/admin/discovery/config');
     }
 
+    async updateDiscoveryConfig(config: { settings: Record<string, any> }) {
+        return this.request<any>('PUT', '/admin/discovery/config', config);
+    }
+
     async triggerDiscovery(source?: string) {
         return this.request<any>('POST', '/admin/discovery/trigger', { source });
     }
@@ -307,6 +335,18 @@ class ProcuraAPI {
 
     async getWorkflowConfig() {
         return this.request<any>('GET', '/admin/workflows/config');
+    }
+
+    async updateWorkflowConfig(config: { autonomy_enabled: boolean; autonomy_threshold: number; approval_steps?: any[] }) {
+        return this.request<any>('PUT', '/admin/workflows/config', config);
+    }
+
+    async getSystemSetting(key: string) {
+        return this.request<any>('GET', `/admin/settings/${key}`);
+    }
+
+    async deleteSystemSetting(key: string) {
+        return this.request<any>('DELETE', `/admin/settings/${key}`);
     }
 
     async getJobs(status?: string) {

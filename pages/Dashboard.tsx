@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, ChevronRight, Copy, ExternalLink, FileText, Loader2, RotateCw, Search, Sparkles, X, XCircle } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight, Copy, ExternalLink, FileText, Loader2, Newspaper, RotateCw, Search, Sparkles, X, XCircle } from 'lucide-react';
 import { api } from '../lib/api';
+import NewsFeed from '../components/NewsFeed';
 import {
   type OpportunityRecord,
   type OpportunityStatus,
@@ -114,6 +115,7 @@ const Dashboard: React.FC = () => {
 
   const [syncUntilMs, setSyncUntilMs] = useState<number | null>(null);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
+  const [newsFeedOpen, setNewsFeedOpen] = useState(true);
 
   useEffect(() => {
     if (!syncUntilMs) return;
@@ -498,7 +500,8 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 flex min-h-0 bg-white">
+    <div className="flex-1 flex flex-col min-h-0 bg-white">
+      <div className="flex-1 flex min-h-0">
       {isDesktop ? (
         /* Desktop: Side-by-side grid layout */
         <>
@@ -1718,6 +1721,29 @@ const Dashboard: React.FC = () => {
           )}
         </>
       )}
+      </div>
+
+      {/* Market Intelligence - Collapsible News Feed */}
+      <div className="border-t border-gray-200 shrink-0 bg-white">
+        <button
+          onClick={() => setNewsFeedOpen((prev) => !prev)}
+          className="w-full flex items-center justify-between px-6 py-3 hover:bg-gray-50 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Newspaper size={16} className="text-gray-400" />
+            <span className="text-sm font-semibold text-gray-900">Market Intelligence</span>
+          </div>
+          <ChevronDown
+            size={16}
+            className={`text-gray-400 transition-transform duration-200 ${newsFeedOpen ? 'rotate-180' : ''}`}
+          />
+        </button>
+        {newsFeedOpen && (
+          <div className="border-t border-gray-100">
+            <NewsFeed />
+          </div>
+        )}
+      </div>
     </div>
   );
 };
