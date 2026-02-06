@@ -10,10 +10,9 @@ export default defineConfig(({ mode }) => {
         host: '0.0.0.0',
       },
       plugins: [react()],
-      define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
-      },
+      // API keys must NOT be bundled into client-side code.
+      // Use VITE_* prefixed env vars for public config only (e.g. Supabase URL).
+      define: {},
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),

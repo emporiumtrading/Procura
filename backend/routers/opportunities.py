@@ -61,7 +61,9 @@ async def list_opportunities(
         if min_fit_score is not None:
             query = query.gte("fit_score", min_fit_score)
         if search:
-            query = query.or_(f"title.ilike.%{search}%,agency.ilike.%{search}%,external_ref.ilike.%{search}%")
+            # Sanitize: strip PostgREST filter control chars to prevent filter injection
+            safe_search = search.replace(",", "").replace("(", "").replace(")", "")
+            query = query.or_(f"title.ilike.%{safe_search}%,agency.ilike.%{safe_search}%,external_ref.ilike.%{safe_search}%")
         
         query = query.order("due_date", desc=False).range(offset, offset + limit - 1)
         

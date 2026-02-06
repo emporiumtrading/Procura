@@ -10,6 +10,7 @@ Gap fixes applied:
 """
 import os
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
@@ -254,13 +255,13 @@ async def create_submission(
 
         # Auto-create a follow-up tracker for this submission
         try:
-            from datetime import datetime, timedelta
+            from datetime import timedelta
             supabase.table("follow_ups").insert({
                 "submission_id": submission_id,
                 "opportunity_id": submission.opportunity_id,
                 "status": "pending",
                 "check_type": "status_check",
-                "next_check_at": (datetime.utcnow() + timedelta(days=1)).isoformat(),
+                "next_check_at": (datetime.now(timezone.utc) + timedelta(days=1)).isoformat(),
                 "check_interval_hours": 24,
                 "assigned_to": user["id"],
                 "auto_check": True,
@@ -370,7 +371,7 @@ async def approve_submission(
         supabase.table("approval_workflows").update({
             "status": "approved",
             "approver_id": user["id"],
-            "approved_at": "now()",
+            "approved_at": datetime.now(timezone.utc).isoformat(),
             "notes": notes
         }).eq("submission_id", submission_id).eq("step_name", step).execute()
 
@@ -542,7 +543,7 @@ async def update_task(
         supabase.table("submission_tasks").update({
             "completed": completed,
             "completed_by": user["id"] if completed else None,
-            "completed_at": "now()" if completed else None
+            "completed_at": datetime.now(timezone.utc).isoformat() if completed else None
         }).eq("id", task_id).execute()
 
         # Auto-unlock dependent tasks

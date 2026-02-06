@@ -4,6 +4,7 @@ Reusable document storage for cross-submission use.
 Supports versioning, tagging, and AI-extracted metadata.
 """
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form, status
@@ -331,7 +332,7 @@ async def link_document_to_submission(
         # Increment usage count
         supabase.table("document_library").update({
             "usage_count": (doc.data.get("usage_count") or 0) + 1,
-            "last_used_at": "now()",
+            "last_used_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", document_id).execute()
 
         logger.info("Document linked to submission", doc_id=document_id, submission_id=submission_id)
