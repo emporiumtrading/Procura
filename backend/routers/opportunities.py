@@ -11,6 +11,7 @@ import structlog
 from ..dependencies import get_current_user, require_officer, get_request_supabase
 from ..config import settings
 from ..database import get_supabase_client
+from ..api_keys import get_api_key
 from ..models import (
     OpportunityResponse,
     OpportunityListResponse,
@@ -36,7 +37,7 @@ _SYNC_COOLDOWN_SECONDS = 30
 
 @router.get("", response_model=OpportunityListResponse)
 async def list_opportunities(
-    status: Optional[OpportunityStatus] = None,
+    status_filter: Optional[OpportunityStatus] = Query(None, alias="status"),
     source: Optional[str] = None,
     min_fit_score: Optional[int] = Query(None, ge=0, le=100),
     search: Optional[str] = None,
@@ -49,18 +50,20 @@ async def list_opportunities(
     List opportunities with optional filters
     """
     offset = (page - 1) * limit
-    
+
     try:
         query = supabase.table("opportunities").select("*", count="exact")
-        
-        if status:
-            query = query.eq("status", status.value)
+
+        if status_filter:
+            query = query.eq("status", status_filter.value)
         if source:
             query = query.eq("source", source)
         if min_fit_score is not None:
             query = query.gte("fit_score", min_fit_score)
         if search:
-            query = query.or_(f"title.ilike.%{search}%,agency.ilike.%{search}%,external_ref.ilike.%{search}%")
+            # Sanitize: strip PostgREST filter control chars to prevent filter injection
+            safe_search = search.replace(",", "").replace("(", "").replace(")", "").replace(".", "")
+            query = query.or_(f"title.ilike.%{safe_search}%,agency.ilike.%{safe_search}%,external_ref.ilike.%{safe_search}%")
         
         query = query.order("due_date", desc=False).range(offset, offset + limit - 1)
         
@@ -238,18 +241,9 @@ async def trigger_sync(
             )
         _LAST_SYNC_BY_USER[user["id"]] = now
 
-        def _is_placeholder(value: Optional[str]) -> bool:
-            if not value:
-                return True
-            v = value.strip()
-            if not v:
-                return True
-            upper = v.upper()
-            return upper == "PLACEHOLDER" or "PLACEHOLDER" in upper or v.startswith("your-")
-
-        connectors: dict[str, tuple[type, Optional[str]]] = {
-            "govcon": (GovConAPIConnector, settings.GOVCON_API_KEY),
-            "sam": (SAMGovConnector, settings.SAM_GOV_API_KEY),
+        connectors: dict[str, tuple[type, str]] = {
+            "govcon": (GovConAPIConnector, "GOVCON_API_KEY"),
+            "sam": (SAMGovConnector, "SAM_GOV_API_KEY"),
         }
 
         requested = request.connector_name.lower() if request.connector_name else None
@@ -259,12 +253,12 @@ async def trigger_sync(
                 raise HTTPException(status_code=400, detail=f"Unknown connector: {request.connector_name}")
             connector_names = [requested]
         else:
-            connector_names = [name for name, (_, key) in connectors.items() if not _is_placeholder(key)]
+            connector_names = [name for name, (_, key_name) in connectors.items() if get_api_key(key_name)]
 
         if not connector_names:
             raise HTTPException(
                 status_code=400,
-                detail="No discovery connectors are configured (set GOVCON_API_KEY and/or SAM_GOV_API_KEY in backend/.env)",
+                detail="No discovery connectors are configured. Add API keys in Settings > API Keys.",
             )
 
         since = datetime.now(timezone.utc) - timedelta(days=7)
@@ -275,13 +269,14 @@ async def trigger_sync(
         admin_supabase = get_supabase_client()
 
         for name in connector_names:
-            connector_class, api_key = connectors[name]
-            if _is_placeholder(api_key):
+            connector_class, key_name = connectors[name]
+            resolved_key = get_api_key(key_name)
+            if not resolved_key:
                 errors.append(f"{name}: missing api key")
                 continue
 
             # Fetch + normalize opportunities from the external source
-            async with connector_class(api_key=api_key) as connector:
+            async with connector_class(api_key=resolved_key) as connector:
                 result = await connector.run_discovery(since)
 
             opps = result.get("opportunities") or []
@@ -307,6 +302,8 @@ async def trigger_sync(
             run_ids=run_ids,
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("Failed to trigger sync", error=str(e))
         raise HTTPException(

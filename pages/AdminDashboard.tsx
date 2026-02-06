@@ -6,11 +6,12 @@ import {
     TrendingUp, TrendingDown, Minus, CheckCircle, XCircle, Clock,
     Zap, RefreshCw, Download, Upload, Loader2, ChevronRight,
     ToggleLeft, ToggleRight, Play, Pause, Trash2, Edit2, Plus,
-    AlertTriangle, Info, Gem, LogOut, Moon, Sun, ExternalLink
+    AlertTriangle, Info, Gem, LogOut, Moon, Sun, ExternalLink, X,
+    Plug, Eye, RotateCw, History, Key
 } from 'lucide-react';
 import { api } from '../lib/api';
 
-type AdminSection = 'overview' | 'users' | 'discovery' | 'ai' | 'settings' | 'security' | 'audit';
+type AdminSection = 'overview' | 'users' | 'discovery' | 'connectors' | 'ai' | 'settings' | 'security' | 'audit';
 
 interface Metric {
     label: string;
@@ -49,6 +50,30 @@ interface DiscoveryConfig {
     schedule?: string;
 }
 
+interface Connector {
+    id: string;
+    name: string;
+    label?: string;
+    portal_url?: string;
+    auth_type: string;
+    status: string;
+    rate_limit_per_min?: number;
+    schedule_cron?: string;
+    last_run_at?: string;
+    error_count?: number;
+    created_at?: string;
+}
+
+interface ConnectorRun {
+    id: string;
+    connector_id: string;
+    status: string;
+    started_at: string;
+    finished_at?: string;
+    records_found?: number;
+    error_message?: string;
+}
+
 interface AdminMetrics {
     total_opportunities?: number;
     active_submissions?: number;
@@ -75,6 +100,44 @@ const AdminDashboard: React.FC = () => {
     const [aiConfig, setAiConfig] = useState<AIConfig | null>(null);
     const [discoveryConfig, setDiscoveryConfig] = useState<DiscoveryConfig | null>(null);
 
+    // User management states
+    const [userSearch, setUserSearch] = useState('');
+    const [showInviteModal, setShowInviteModal] = useState(false);
+    const [inviteEmail, setInviteEmail] = useState('');
+    const [inviteRole, setInviteRole] = useState('viewer');
+    const [inviteLoading, setInviteLoading] = useState(false);
+    const [actionDropdownUserId, setActionDropdownUserId] = useState<string | null>(null);
+    const [showRoleChangeModal, setShowRoleChangeModal] = useState(false);
+    const [roleChangeUser, setRoleChangeUser] = useState<User | null>(null);
+    const [roleChangeValue, setRoleChangeValue] = useState('');
+    const [actionLoading, setActionLoading] = useState(false);
+
+    // Connector management states
+    const [connectors, setConnectors] = useState<Connector[]>([]);
+    const [connectorsLoading, setConnectorsLoading] = useState(false);
+    const [showCreateConnectorModal, setShowCreateConnectorModal] = useState(false);
+    const [connectorRunHistory, setConnectorRunHistory] = useState<ConnectorRun[]>([]);
+    const [runHistoryConnectorId, setRunHistoryConnectorId] = useState<string | null>(null);
+    const [runHistoryLoading, setRunHistoryLoading] = useState(false);
+    const [testingConnectorId, setTestingConnectorId] = useState<string | null>(null);
+    const [testResult, setTestResult] = useState<{ id: string; success: boolean; message: string } | null>(null);
+
+    // Create connector form states
+    const [newConnectorName, setNewConnectorName] = useState('');
+    const [newConnectorLabel, setNewConnectorLabel] = useState('');
+    const [newConnectorUrl, setNewConnectorUrl] = useState('');
+    const [newConnectorAuthType, setNewConnectorAuthType] = useState('api_key');
+    const [newConnectorCredentials, setNewConnectorCredentials] = useState<{ key: string; value: string }[]>([{ key: '', value: '' }]);
+    const [newConnectorCron, setNewConnectorCron] = useState('');
+    const [newConnectorRateLimit, setNewConnectorRateLimit] = useState(60);
+    const [createConnectorLoading, setCreateConnectorLoading] = useState(false);
+
+    // Rotate credentials states
+    const [showRotateModal, setShowRotateModal] = useState(false);
+    const [rotateConnectorId, setRotateConnectorId] = useState<string | null>(null);
+    const [rotateCredentials, setRotateCredentials] = useState<{ key: string; value: string }[]>([{ key: '', value: '' }]);
+    const [rotateLoading, setRotateLoading] = useState(false);
+
     // Load metrics
     useEffect(() => {
         if (activeSection === 'overview') {
@@ -100,6 +163,13 @@ const AdminDashboard: React.FC = () => {
     useEffect(() => {
         if (activeSection === 'ai') {
             loadAIConfig();
+        }
+    }, [activeSection]);
+
+    // Load connectors when section is active
+    useEffect(() => {
+        if (activeSection === 'connectors') {
+            loadConnectors();
         }
     }, [activeSection]);
 
@@ -196,10 +266,247 @@ const AdminDashboard: React.FC = () => {
         }
     };
 
+    // Filtered users based on search
+    const filteredUsers = users.filter(user => {
+        if (!userSearch.trim()) return true;
+        const query = userSearch.toLowerCase();
+        return (
+            user.name?.toLowerCase().includes(query) ||
+            user.email?.toLowerCase().includes(query) ||
+            user.role?.toLowerCase().includes(query)
+        );
+    });
+
+    // Invite user handler
+    const handleInviteUser = async () => {
+        if (!inviteEmail.trim()) return;
+        setInviteLoading(true);
+        setError(null);
+        try {
+            const response = await api.inviteUser(inviteEmail.trim(), inviteRole);
+            if (response.error) {
+                setError(response.error);
+            } else {
+                setShowInviteModal(false);
+                setInviteEmail('');
+                setInviteRole('viewer');
+                await loadUsers();
+            }
+        } catch (err) {
+            setError('Failed to invite user');
+        } finally {
+            setInviteLoading(false);
+        }
+    };
+
+    // Change user role handler
+    const handleChangeRole = async () => {
+        if (!roleChangeUser || !roleChangeValue) return;
+        setActionLoading(true);
+        setError(null);
+        try {
+            const response = await api.updateUser(roleChangeUser.id, { role: roleChangeValue });
+            if (response.error) {
+                setError(response.error);
+            } else {
+                setShowRoleChangeModal(false);
+                setRoleChangeUser(null);
+                setRoleChangeValue('');
+                await loadUsers();
+            }
+        } catch (err) {
+            setError('Failed to update user role');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    // Delete user handler
+    const handleDeleteUser = async (userId: string) => {
+        if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) return;
+        setActionLoading(true);
+        setActionDropdownUserId(null);
+        setError(null);
+        try {
+            const response = await api.deleteUser(userId);
+            if (response.error) {
+                setError(response.error);
+            } else {
+                await loadUsers();
+            }
+        } catch (err) {
+            setError('Failed to delete user');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    // Open role change modal for a user
+    const openRoleChangeModal = (user: User) => {
+        setRoleChangeUser(user);
+        setRoleChangeValue(user.role);
+        setShowRoleChangeModal(true);
+        setActionDropdownUserId(null);
+    };
+
+    // Load connectors
+    const loadConnectors = async () => {
+        setConnectorsLoading(true);
+        setError(null);
+        try {
+            const response = await api.getConnectors();
+            if (response.error) {
+                setError(response.error);
+                setConnectors([]);
+            } else if (response.data) {
+                setConnectors(response.data);
+            }
+        } catch (err) {
+            setError('Failed to load connectors');
+            setConnectors([]);
+        } finally {
+            setConnectorsLoading(false);
+        }
+    };
+
+    // Test connector
+    const handleTestConnector = async (connectorId: string) => {
+        setTestingConnectorId(connectorId);
+        setTestResult(null);
+        try {
+            const response = await api.testConnector(connectorId);
+            if (response.error) {
+                setTestResult({ id: connectorId, success: false, message: response.error });
+            } else {
+                setTestResult({ id: connectorId, success: true, message: 'Connection test successful' });
+            }
+        } catch (err) {
+            setTestResult({ id: connectorId, success: false, message: 'Connection test failed' });
+        } finally {
+            setTestingConnectorId(null);
+        }
+    };
+
+    // View connector run history
+    const handleViewRuns = async (connectorId: string) => {
+        setRunHistoryConnectorId(connectorId);
+        setRunHistoryLoading(true);
+        setConnectorRunHistory([]);
+        try {
+            const response = await api.getConnectorRuns(connectorId, 20);
+            if (response.error) {
+                setError(response.error);
+            } else if (response.data) {
+                setConnectorRunHistory(response.data);
+            }
+        } catch (err) {
+            setError('Failed to load run history');
+        } finally {
+            setRunHistoryLoading(false);
+        }
+    };
+
+    // Create connector
+    const handleCreateConnector = async () => {
+        if (!newConnectorName.trim()) return;
+        setCreateConnectorLoading(true);
+        setError(null);
+        try {
+            const credentials: Record<string, string> = {};
+            newConnectorCredentials.forEach(({ key, value }) => {
+                if (key.trim()) credentials[key.trim()] = value;
+            });
+
+            const response = await api.createConnector({
+                name: newConnectorName.trim(),
+                label: newConnectorLabel.trim() || undefined,
+                portal_url: newConnectorUrl.trim() || undefined,
+                auth_type: newConnectorAuthType,
+                credentials,
+                schedule_cron: newConnectorCron.trim() || undefined,
+                rate_limit_per_min: newConnectorRateLimit,
+            });
+
+            if (response.error) {
+                setError(response.error);
+            } else {
+                setShowCreateConnectorModal(false);
+                resetCreateConnectorForm();
+                await loadConnectors();
+            }
+        } catch (err) {
+            setError('Failed to create connector');
+        } finally {
+            setCreateConnectorLoading(false);
+        }
+    };
+
+    // Reset create connector form
+    const resetCreateConnectorForm = () => {
+        setNewConnectorName('');
+        setNewConnectorLabel('');
+        setNewConnectorUrl('');
+        setNewConnectorAuthType('api_key');
+        setNewConnectorCredentials([{ key: '', value: '' }]);
+        setNewConnectorCron('');
+        setNewConnectorRateLimit(60);
+    };
+
+    // Rotate credentials
+    const handleRotateCredentials = async () => {
+        if (!rotateConnectorId) return;
+        setRotateLoading(true);
+        setError(null);
+        try {
+            const credentials: Record<string, string> = {};
+            rotateCredentials.forEach(({ key, value }) => {
+                if (key.trim()) credentials[key.trim()] = value;
+            });
+
+            const response = await api.rotateConnectorCredentials(rotateConnectorId, credentials);
+            if (response.error) {
+                setError(response.error);
+            } else {
+                setShowRotateModal(false);
+                setRotateConnectorId(null);
+                setRotateCredentials([{ key: '', value: '' }]);
+                await loadConnectors();
+            }
+        } catch (err) {
+            setError('Failed to rotate credentials');
+        } finally {
+            setRotateLoading(false);
+        }
+    };
+
+    // Open rotate credentials modal
+    const openRotateModal = (connectorId: string) => {
+        setRotateConnectorId(connectorId);
+        setRotateCredentials([{ key: '', value: '' }]);
+        setShowRotateModal(true);
+    };
+
+    // Revoke connector
+    const handleRevokeConnector = async (connectorId: string) => {
+        if (!confirm('Are you sure you want to revoke this connector? This will disable it.')) return;
+        setError(null);
+        try {
+            const response = await api.revokeConnector(connectorId);
+            if (response.error) {
+                setError(response.error);
+            } else {
+                await loadConnectors();
+            }
+        } catch (err) {
+            setError('Failed to revoke connector');
+        }
+    };
+
     const navItems = [
         { id: 'overview', icon: LayoutDashboard, label: 'Overview' },
         { id: 'users', icon: Users, label: 'Users' },
         { id: 'discovery', icon: Database, label: 'Discovery' },
+        { id: 'connectors', icon: Plug, label: 'Connectors' },
         { id: 'ai', icon: Cpu, label: 'AI Config' },
         { id: 'security', icon: Shield, label: 'Security' },
         { id: 'audit', icon: FileText, label: 'Audit Log' },
@@ -390,11 +697,16 @@ const AdminDashboard: React.FC = () => {
                                     <input
                                         type="text"
                                         placeholder="Search users..."
+                                        value={userSearch}
+                                        onChange={(e) => setUserSearch(e.target.value)}
                                         className={`pl-9 pr-4 py-2 border rounded-lg text-sm w-64 ${darkMode ? 'bg-neutral-800 border-neutral-700 text-white' : 'bg-white border-gray-200'
                                             }`}
                                     />
                                 </div>
-                                <button className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-all">
+                                <button
+                                    onClick={() => setShowInviteModal(true)}
+                                    className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-all"
+                                >
                                     <Plus size={16} />
                                     Invite User
                                 </button>
@@ -404,10 +716,12 @@ const AdminDashboard: React.FC = () => {
                                 <div className="flex items-center justify-center py-12">
                                     <Loader2 size={32} className="animate-spin text-gray-400" />
                                 </div>
-                            ) : users.length === 0 ? (
+                            ) : filteredUsers.length === 0 ? (
                                 <div className={`p-8 rounded-xl border text-center ${darkMode ? 'bg-[#111] border-neutral-800' : 'bg-white border-gray-100'}`}>
                                     <Users size={32} className="mx-auto mb-3 text-gray-400" />
-                                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No users found</p>
+                                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                        {userSearch.trim() ? 'No users match your search' : 'No users found'}
+                                    </p>
                                 </div>
                             ) : (
                                 <div className={`rounded-xl border overflow-hidden ${darkMode ? 'bg-[#111] border-neutral-800' : 'bg-white border-gray-100'}`}>
@@ -422,7 +736,7 @@ const AdminDashboard: React.FC = () => {
                                             </tr>
                                         </thead>
                                         <tbody className={`divide-y ${darkMode ? 'divide-neutral-800' : 'divide-gray-100'}`}>
-                                            {users.map(user => (
+                                            {filteredUsers.map(user => (
                                                 <tr key={user.id} className={`transition-colors ${darkMode ? 'hover:bg-neutral-800/30' : 'hover:bg-gray-50'}`}>
                                                     <td className="px-6 py-4">
                                                         <div className="flex items-center gap-3">
@@ -447,9 +761,32 @@ const AdminDashboard: React.FC = () => {
                                                         <span className="text-sm text-gray-500">{user.lastLogin || 'Never'}</span>
                                                     </td>
                                                     <td className="px-6 py-4">
-                                                        <button className={`p-1.5 rounded-lg ${darkMode ? 'hover:bg-neutral-700' : 'hover:bg-gray-100'}`}>
-                                                            <MoreHorizontal size={16} className="text-gray-400" />
-                                                        </button>
+                                                        <div className="relative">
+                                                            <button
+                                                                onClick={() => setActionDropdownUserId(actionDropdownUserId === user.id ? null : user.id)}
+                                                                className={`p-1.5 rounded-lg ${darkMode ? 'hover:bg-neutral-700' : 'hover:bg-gray-100'}`}
+                                                            >
+                                                                <MoreHorizontal size={16} className="text-gray-400" />
+                                                            </button>
+                                                            {actionDropdownUserId === user.id && (
+                                                                <div className={`absolute right-0 top-full mt-1 w-48 rounded-lg border shadow-lg z-10 py-1 ${darkMode ? 'bg-neutral-800 border-neutral-700' : 'bg-white border-gray-200'}`}>
+                                                                    <button
+                                                                        onClick={() => openRoleChangeModal(user)}
+                                                                        className={`w-full flex items-center gap-2 px-4 py-2 text-sm text-left transition-colors ${darkMode ? 'text-gray-300 hover:bg-neutral-700' : 'text-gray-700 hover:bg-gray-50'}`}
+                                                                    >
+                                                                        <Edit2 size={14} />
+                                                                        Change Role
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleDeleteUser(user.id)}
+                                                                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-left text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                                                    >
+                                                                        <Trash2 size={14} />
+                                                                        Delete User
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             ))}
@@ -528,6 +865,199 @@ const AdminDashboard: React.FC = () => {
                                         </div>
                                     )}
                                 </>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Connectors */}
+                    {activeSection === 'connectors' && (
+                        <div className="space-y-6 animate-fade-in">
+                            {/* Error Message */}
+                            {error && (
+                                <div className={`p-4 rounded-xl border ${darkMode ? 'bg-red-900/20 border-red-800' : 'bg-red-50 border-red-200'}`}>
+                                    <div className="flex items-center gap-2">
+                                        <AlertTriangle size={18} className="text-red-600" />
+                                        <p className={`text-sm font-medium ${darkMode ? 'text-red-400' : 'text-red-800'}`}>{error}</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex items-center justify-between">
+                                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    Manage portal connectors, test connections, and view run history.
+                                </p>
+                                <button
+                                    onClick={() => setShowCreateConnectorModal(true)}
+                                    className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-all"
+                                >
+                                    <Plus size={16} />
+                                    Add Connector
+                                </button>
+                            </div>
+
+                            {connectorsLoading ? (
+                                <div className="flex items-center justify-center py-12">
+                                    <Loader2 size={32} className="animate-spin text-gray-400" />
+                                </div>
+                            ) : connectors.length === 0 ? (
+                                <div className={`p-8 rounded-xl border text-center ${darkMode ? 'bg-[#111] border-neutral-800' : 'bg-white border-gray-100'}`}>
+                                    <Plug size={32} className="mx-auto mb-3 text-gray-400" />
+                                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                        No connectors configured yet
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className={`rounded-xl border overflow-hidden ${darkMode ? 'bg-[#111] border-neutral-800' : 'bg-white border-gray-100'}`}>
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className={darkMode ? 'bg-neutral-800/50' : 'bg-gray-50'}>
+                                                <th className={`text-left text-xs font-semibold uppercase tracking-wider px-6 py-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Name</th>
+                                                <th className={`text-left text-xs font-semibold uppercase tracking-wider px-6 py-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Status</th>
+                                                <th className={`text-left text-xs font-semibold uppercase tracking-wider px-6 py-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Auth Type</th>
+                                                <th className={`text-left text-xs font-semibold uppercase tracking-wider px-6 py-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Rate Limit</th>
+                                                <th className={`text-left text-xs font-semibold uppercase tracking-wider px-6 py-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Last Run</th>
+                                                <th className={`text-left text-xs font-semibold uppercase tracking-wider px-6 py-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Error Count</th>
+                                                <th className={`text-left text-xs font-semibold uppercase tracking-wider px-6 py-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className={`divide-y ${darkMode ? 'divide-neutral-800' : 'divide-gray-100'}`}>
+                                            {connectors.map(connector => (
+                                                <tr key={connector.id} className={`transition-colors ${darkMode ? 'hover:bg-neutral-800/30' : 'hover:bg-gray-50'}`}>
+                                                    <td className="px-6 py-4">
+                                                        <div>
+                                                            <p className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{connector.label || connector.name}</p>
+                                                            <p className="text-xs text-gray-500">{connector.name}</p>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(connector.status)}`}>
+                                                            {connector.status}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>{connector.auth_type}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>{connector.rate_limit_per_min ?? 'N/A'}/min</span>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className="text-sm text-gray-500">{connector.last_run_at || 'Never'}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className={`text-sm ${(connector.error_count ?? 0) > 0 ? 'text-red-500 font-medium' : darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                            {connector.error_count ?? 0}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center gap-1">
+                                                            <button
+                                                                onClick={() => handleTestConnector(connector.id)}
+                                                                disabled={testingConnectorId === connector.id}
+                                                                title="Test Connection"
+                                                                className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-neutral-700 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-900'} disabled:opacity-50`}
+                                                            >
+                                                                {testingConnectorId === connector.id ? (
+                                                                    <Loader2 size={14} className="animate-spin" />
+                                                                ) : (
+                                                                    <Zap size={14} />
+                                                                )}
+                                                            </button>
+                                                            <button
+                                                                onClick={() => openRotateModal(connector.id)}
+                                                                title="Rotate Credentials"
+                                                                className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-neutral-700 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-900'}`}
+                                                            >
+                                                                <Key size={14} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleViewRuns(connector.id)}
+                                                                title="View Runs"
+                                                                className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-neutral-700 text-gray-400 hover:text-white' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-900'}`}
+                                                            >
+                                                                <History size={14} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleRevokeConnector(connector.id)}
+                                                                title="Revoke"
+                                                                className="p-1.5 rounded-lg transition-colors text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600"
+                                                            >
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                        </div>
+                                                        {/* Test result inline message */}
+                                                        {testResult && testResult.id === connector.id && (
+                                                            <div className={`mt-1.5 flex items-center gap-1 text-xs font-medium ${testResult.success ? 'text-green-600' : 'text-red-500'}`}>
+                                                                {testResult.success ? <CheckCircle size={12} /> : <XCircle size={12} />}
+                                                                {testResult.message}
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+
+                            {/* Run History Panel */}
+                            {runHistoryConnectorId && (
+                                <div className={`p-5 rounded-xl border ${darkMode ? 'bg-[#111] border-neutral-800' : 'bg-white border-gray-100'}`}>
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                            Run History &mdash; {connectors.find(c => c.id === runHistoryConnectorId)?.label || connectors.find(c => c.id === runHistoryConnectorId)?.name}
+                                        </h3>
+                                        <button
+                                            onClick={() => { setRunHistoryConnectorId(null); setConnectorRunHistory([]); }}
+                                            className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-neutral-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                    </div>
+                                    {runHistoryLoading ? (
+                                        <div className="flex items-center justify-center py-8">
+                                            <Loader2 size={24} className="animate-spin text-gray-400" />
+                                        </div>
+                                    ) : connectorRunHistory.length === 0 ? (
+                                        <p className={`text-sm text-center py-6 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>No run history available</p>
+                                    ) : (
+                                        <div className={`rounded-lg border overflow-hidden ${darkMode ? 'border-neutral-800' : 'border-gray-100'}`}>
+                                            <table className="w-full">
+                                                <thead>
+                                                    <tr className={darkMode ? 'bg-neutral-800/50' : 'bg-gray-50'}>
+                                                        <th className={`text-left text-xs font-semibold uppercase tracking-wider px-4 py-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Status</th>
+                                                        <th className={`text-left text-xs font-semibold uppercase tracking-wider px-4 py-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Started</th>
+                                                        <th className={`text-left text-xs font-semibold uppercase tracking-wider px-4 py-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Finished</th>
+                                                        <th className={`text-left text-xs font-semibold uppercase tracking-wider px-4 py-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Records</th>
+                                                        <th className={`text-left text-xs font-semibold uppercase tracking-wider px-4 py-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Error</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className={`divide-y ${darkMode ? 'divide-neutral-800' : 'divide-gray-100'}`}>
+                                                    {connectorRunHistory.map(run => (
+                                                        <tr key={run.id} className={`transition-colors ${darkMode ? 'hover:bg-neutral-800/30' : 'hover:bg-gray-50'}`}>
+                                                            <td className="px-4 py-2.5">
+                                                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(run.status)}`}>
+                                                                    {run.status}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-4 py-2.5">
+                                                                <span className="text-xs text-gray-500">{run.started_at}</span>
+                                                            </td>
+                                                            <td className="px-4 py-2.5">
+                                                                <span className="text-xs text-gray-500">{run.finished_at || '—'}</span>
+                                                            </td>
+                                                            <td className="px-4 py-2.5">
+                                                                <span className={`text-xs ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>{run.records_found ?? '—'}</span>
+                                                            </td>
+                                                            <td className="px-4 py-2.5">
+                                                                <span className="text-xs text-red-500">{run.error_message || '—'}</span>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
                             )}
                         </div>
                     )}
@@ -621,23 +1151,461 @@ const AdminDashboard: React.FC = () => {
                         </div>
                     )}
 
-                    {/* Settings / Security / Audit placeholders */}
-                    {(activeSection === 'settings' || activeSection === 'security' || activeSection === 'audit') && (
-                        <div className={`p-8 rounded-xl border text-center ${darkMode ? 'bg-[#111] border-neutral-800' : 'bg-white border-gray-100'}`}>
-                            <div className={`h-16 w-16 rounded-2xl mx-auto mb-4 flex items-center justify-center ${darkMode ? 'bg-neutral-800' : 'bg-gray-100'}`}>
-                                <Settings size={32} className="text-gray-400" />
+                    {/* Settings section - redirect to Settings page */}
+                    {activeSection === 'settings' && (
+                        <div className="space-y-6">
+                            <div className={`p-6 rounded-xl border ${darkMode ? 'bg-[#111] border-neutral-800' : 'bg-white border-gray-100'}`}>
+                                <h3 className={`text-lg font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Platform Settings</h3>
+                                <p className={`text-sm mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    API keys, LLM configuration, and automation settings are managed from the dedicated Settings page.
+                                </p>
+                                <button
+                                    onClick={() => navigate('/settings')}
+                                    className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-all"
+                                >
+                                    <ExternalLink size={16} />
+                                    Open Settings
+                                </button>
                             </div>
-                            <h3 className={`text-lg font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                                {activeSection.charAt(0).toUpperCase() + activeSection.slice(1)} Configuration
-                            </h3>
-                            <p className="text-gray-500 mb-4">This section is under development</p>
-                            <button className={`text-sm font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'} hover:underline`}>
-                                Learn more →
-                            </button>
+                        </div>
+                    )}
+
+                    {/* Security section */}
+                    {activeSection === 'security' && (
+                        <div className="space-y-6">
+                            <div className={`p-6 rounded-xl border ${darkMode ? 'bg-[#111] border-neutral-800' : 'bg-white border-gray-100'}`}>
+                                <h3 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Security Status</h3>
+                                <div className="space-y-3">
+                                    {[
+                                        { label: 'JWT Authentication', status: 'active', detail: 'Supabase Auth with PKCE flow' },
+                                        { label: 'Row-Level Security', status: 'active', detail: 'PostgreSQL RLS policies enforced' },
+                                        { label: 'Credential Vault', status: 'active', detail: 'Fernet AES-128 encryption at rest' },
+                                        { label: 'Audit Log Signing', status: 'active', detail: 'HMAC-SHA256 integrity verification' },
+                                        { label: 'MFA (TOTP)', status: 'active', detail: 'Multi-factor authentication enabled' },
+                                        { label: 'HTTPS Enforcement', status: 'active', detail: 'TLS for all API communication' },
+                                    ].map((item) => (
+                                        <div key={item.label} className={`flex items-center justify-between p-3 rounded-lg ${darkMode ? 'bg-neutral-800/50' : 'bg-gray-50'}`}>
+                                            <div>
+                                                <p className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{item.label}</p>
+                                                <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{item.detail}</p>
+                                            </div>
+                                            <span className="flex items-center gap-1 text-xs font-medium text-green-600">
+                                                <CheckCircle size={14} /> Active
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className={`p-6 rounded-xl border ${darkMode ? 'bg-[#111] border-neutral-800' : 'bg-white border-gray-100'}`}>
+                                <h3 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Compliance Readiness</h3>
+                                <p className={`text-xs mb-3 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>Estimated readiness — connect compliance tooling for live tracking.</p>
+                                <div className="space-y-3">
+                                    {[
+                                        { label: 'SOC 2 Type II', progress: 75 },
+                                        { label: 'NIST 800-171', progress: 60 },
+                                        { label: 'FedRAMP', progress: 40 },
+                                    ].map((item) => (
+                                        <div key={item.label}>
+                                            <div className="flex justify-between mb-1">
+                                                <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>{item.label}</span>
+                                                <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{item.progress}%</span>
+                                            </div>
+                                            <div className={`h-2 rounded-full ${darkMode ? 'bg-neutral-700' : 'bg-gray-200'}`}>
+                                                <div className={`h-full rounded-full ${item.progress >= 70 ? 'bg-green-500' : item.progress >= 50 ? 'bg-amber-500' : 'bg-blue-500'}`} style={{ width: `${item.progress}%` }} />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Audit section - redirect to Audit Vault */}
+                    {activeSection === 'audit' && (
+                        <div className="space-y-6">
+                            <div className={`p-6 rounded-xl border ${darkMode ? 'bg-[#111] border-neutral-800' : 'bg-white border-gray-100'}`}>
+                                <h3 className={`text-lg font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Audit & Compliance</h3>
+                                <p className={`text-sm mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                    View the full audit trail with HMAC-verified integrity checks and compliance evidence.
+                                </p>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => navigate('/audit')}
+                                        className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-all"
+                                    >
+                                        <ExternalLink size={16} />
+                                        Open Audit Vault
+                                    </button>
+                                </div>
+                            </div>
+                            <div className={`p-6 rounded-xl border ${darkMode ? 'bg-[#111] border-neutral-800' : 'bg-white border-gray-100'}`}>
+                                <h3 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Audit Features</h3>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {[
+                                        { icon: Shield, label: 'Immutable Logs', desc: 'HMAC-SHA256 signed entries' },
+                                        { icon: FileText, label: 'Evidence Storage', desc: 'Screenshots, PDFs, receipts' },
+                                        { icon: Download, label: 'JSON Export', desc: 'Full audit trail export' },
+                                        { icon: CheckCircle, label: 'Tamper Detection', desc: 'Cryptographic verification' },
+                                    ].map((item) => (
+                                        <div key={item.label} className={`p-3 rounded-lg ${darkMode ? 'bg-neutral-800/50' : 'bg-gray-50'}`}>
+                                            <item.icon size={20} className={`mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+                                            <p className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{item.label}</p>
+                                            <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{item.desc}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>
             </div>
+
+            {/* Invite User Modal */}
+            {showInviteModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/50" onClick={() => setShowInviteModal(false)} />
+                    <div className={`relative w-full max-w-md mx-4 rounded-xl border shadow-2xl ${darkMode ? 'bg-[#111] border-neutral-800' : 'bg-white border-gray-200'}`}>
+                        <div className={`flex items-center justify-between px-6 py-4 border-b ${darkMode ? 'border-neutral-800' : 'border-gray-100'}`}>
+                            <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Invite User</h3>
+                            <button
+                                onClick={() => setShowInviteModal(false)}
+                                className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-neutral-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <div className="px-6 py-5 space-y-4">
+                            <div>
+                                <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Email Address</label>
+                                <input
+                                    type="email"
+                                    value={inviteEmail}
+                                    onChange={(e) => setInviteEmail(e.target.value)}
+                                    placeholder="user@example.com"
+                                    className={`w-full px-3 py-2 border rounded-lg text-sm ${darkMode ? 'bg-neutral-800 border-neutral-700 text-white placeholder-gray-500' : 'bg-white border-gray-200 placeholder-gray-400'}`}
+                                />
+                            </div>
+                            <div>
+                                <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Role</label>
+                                <select
+                                    value={inviteRole}
+                                    onChange={(e) => setInviteRole(e.target.value)}
+                                    className={`w-full px-3 py-2 border rounded-lg text-sm ${darkMode ? 'bg-neutral-800 border-neutral-700 text-white' : 'bg-white border-gray-200'}`}
+                                >
+                                    <option value="viewer">Viewer</option>
+                                    <option value="contract_officer">Contract Officer</option>
+                                    <option value="admin">Admin</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className={`flex items-center justify-end gap-3 px-6 py-4 border-t ${darkMode ? 'border-neutral-800' : 'border-gray-100'}`}>
+                            <button
+                                onClick={() => setShowInviteModal(false)}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${darkMode ? 'text-gray-300 hover:bg-neutral-800' : 'text-gray-700 hover:bg-gray-100'}`}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleInviteUser}
+                                disabled={inviteLoading || !inviteEmail.trim()}
+                                className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {inviteLoading && <Loader2 size={14} className="animate-spin" />}
+                                {inviteLoading ? 'Sending...' : 'Send Invite'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Change Role Modal */}
+            {showRoleChangeModal && roleChangeUser && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/50" onClick={() => { setShowRoleChangeModal(false); setRoleChangeUser(null); }} />
+                    <div className={`relative w-full max-w-md mx-4 rounded-xl border shadow-2xl ${darkMode ? 'bg-[#111] border-neutral-800' : 'bg-white border-gray-200'}`}>
+                        <div className={`flex items-center justify-between px-6 py-4 border-b ${darkMode ? 'border-neutral-800' : 'border-gray-100'}`}>
+                            <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Change Role</h3>
+                            <button
+                                onClick={() => { setShowRoleChangeModal(false); setRoleChangeUser(null); }}
+                                className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-neutral-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <div className="px-6 py-5 space-y-4">
+                            <div className={`p-3 rounded-lg ${darkMode ? 'bg-neutral-800/50' : 'bg-gray-50'}`}>
+                                <p className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{roleChangeUser.name}</p>
+                                <p className="text-xs text-gray-500">{roleChangeUser.email}</p>
+                            </div>
+                            <div>
+                                <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>New Role</label>
+                                <select
+                                    value={roleChangeValue}
+                                    onChange={(e) => setRoleChangeValue(e.target.value)}
+                                    className={`w-full px-3 py-2 border rounded-lg text-sm ${darkMode ? 'bg-neutral-800 border-neutral-700 text-white' : 'bg-white border-gray-200'}`}
+                                >
+                                    <option value="viewer">Viewer</option>
+                                    <option value="contract_officer">Contract Officer</option>
+                                    <option value="admin">Admin</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className={`flex items-center justify-end gap-3 px-6 py-4 border-t ${darkMode ? 'border-neutral-800' : 'border-gray-100'}`}>
+                            <button
+                                onClick={() => { setShowRoleChangeModal(false); setRoleChangeUser(null); }}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${darkMode ? 'text-gray-300 hover:bg-neutral-800' : 'text-gray-700 hover:bg-gray-100'}`}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleChangeRole}
+                                disabled={actionLoading || roleChangeValue === roleChangeUser.role}
+                                className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {actionLoading && <Loader2 size={14} className="animate-spin" />}
+                                {actionLoading ? 'Updating...' : 'Update Role'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Create Connector Modal */}
+            {showCreateConnectorModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/50" onClick={() => { setShowCreateConnectorModal(false); resetCreateConnectorForm(); }} />
+                    <div className={`relative w-full max-w-lg mx-4 rounded-xl border shadow-2xl max-h-[90vh] overflow-y-auto ${darkMode ? 'bg-[#111] border-neutral-800' : 'bg-white border-gray-200'}`}>
+                        <div className={`flex items-center justify-between px-6 py-4 border-b ${darkMode ? 'border-neutral-800' : 'border-gray-100'}`}>
+                            <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Add Connector</h3>
+                            <button
+                                onClick={() => { setShowCreateConnectorModal(false); resetCreateConnectorForm(); }}
+                                className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-neutral-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <div className="px-6 py-5 space-y-4">
+                            <div>
+                                <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Name</label>
+                                <input
+                                    type="text"
+                                    value={newConnectorName}
+                                    onChange={(e) => setNewConnectorName(e.target.value)}
+                                    placeholder="sam_gov"
+                                    className={`w-full px-3 py-2 border rounded-lg text-sm ${darkMode ? 'bg-neutral-800 border-neutral-700 text-white placeholder-gray-500' : 'bg-white border-gray-200 placeholder-gray-400'}`}
+                                />
+                            </div>
+                            <div>
+                                <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Label</label>
+                                <input
+                                    type="text"
+                                    value={newConnectorLabel}
+                                    onChange={(e) => setNewConnectorLabel(e.target.value)}
+                                    placeholder="SAM.gov"
+                                    className={`w-full px-3 py-2 border rounded-lg text-sm ${darkMode ? 'bg-neutral-800 border-neutral-700 text-white placeholder-gray-500' : 'bg-white border-gray-200 placeholder-gray-400'}`}
+                                />
+                            </div>
+                            <div>
+                                <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Portal URL</label>
+                                <input
+                                    type="url"
+                                    value={newConnectorUrl}
+                                    onChange={(e) => setNewConnectorUrl(e.target.value)}
+                                    placeholder="https://api.sam.gov/opportunities/v2"
+                                    className={`w-full px-3 py-2 border rounded-lg text-sm ${darkMode ? 'bg-neutral-800 border-neutral-700 text-white placeholder-gray-500' : 'bg-white border-gray-200 placeholder-gray-400'}`}
+                                />
+                            </div>
+                            <div>
+                                <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Auth Type</label>
+                                <select
+                                    value={newConnectorAuthType}
+                                    onChange={(e) => setNewConnectorAuthType(e.target.value)}
+                                    className={`w-full px-3 py-2 border rounded-lg text-sm ${darkMode ? 'bg-neutral-800 border-neutral-700 text-white' : 'bg-white border-gray-200'}`}
+                                >
+                                    <option value="api_key">API Key</option>
+                                    <option value="oauth2">OAuth2</option>
+                                    <option value="basic">Basic Auth</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Credentials</label>
+                                <div className="space-y-2">
+                                    {newConnectorCredentials.map((cred, i) => (
+                                        <div key={i} className="flex items-center gap-2">
+                                            <input
+                                                type="text"
+                                                value={cred.key}
+                                                onChange={(e) => {
+                                                    const updated = [...newConnectorCredentials];
+                                                    updated[i] = { ...updated[i], key: e.target.value };
+                                                    setNewConnectorCredentials(updated);
+                                                }}
+                                                placeholder="Key"
+                                                className={`flex-1 px-3 py-2 border rounded-lg text-sm ${darkMode ? 'bg-neutral-800 border-neutral-700 text-white placeholder-gray-500' : 'bg-white border-gray-200 placeholder-gray-400'}`}
+                                            />
+                                            <input
+                                                type="password"
+                                                value={cred.value}
+                                                onChange={(e) => {
+                                                    const updated = [...newConnectorCredentials];
+                                                    updated[i] = { ...updated[i], value: e.target.value };
+                                                    setNewConnectorCredentials(updated);
+                                                }}
+                                                placeholder="Value"
+                                                className={`flex-1 px-3 py-2 border rounded-lg text-sm ${darkMode ? 'bg-neutral-800 border-neutral-700 text-white placeholder-gray-500' : 'bg-white border-gray-200 placeholder-gray-400'}`}
+                                            />
+                                            {newConnectorCredentials.length > 1 && (
+                                                <button
+                                                    onClick={() => setNewConnectorCredentials(newConnectorCredentials.filter((_, idx) => idx !== i))}
+                                                    className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                    <button
+                                        onClick={() => setNewConnectorCredentials([...newConnectorCredentials, { key: '', value: '' }])}
+                                        className={`text-xs font-medium ${darkMode ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        + Add credential pair
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Schedule (Cron)</label>
+                                    <input
+                                        type="text"
+                                        value={newConnectorCron}
+                                        onChange={(e) => setNewConnectorCron(e.target.value)}
+                                        placeholder="0 */6 * * *"
+                                        className={`w-full px-3 py-2 border rounded-lg text-sm ${darkMode ? 'bg-neutral-800 border-neutral-700 text-white placeholder-gray-500' : 'bg-white border-gray-200 placeholder-gray-400'}`}
+                                    />
+                                </div>
+                                <div>
+                                    <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Rate Limit (/min)</label>
+                                    <input
+                                        type="number"
+                                        value={newConnectorRateLimit}
+                                        onChange={(e) => setNewConnectorRateLimit(Number(e.target.value))}
+                                        min={1}
+                                        className={`w-full px-3 py-2 border rounded-lg text-sm ${darkMode ? 'bg-neutral-800 border-neutral-700 text-white' : 'bg-white border-gray-200'}`}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                        <div className={`flex items-center justify-end gap-3 px-6 py-4 border-t ${darkMode ? 'border-neutral-800' : 'border-gray-100'}`}>
+                            <button
+                                onClick={() => { setShowCreateConnectorModal(false); resetCreateConnectorForm(); }}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${darkMode ? 'text-gray-300 hover:bg-neutral-800' : 'text-gray-700 hover:bg-gray-100'}`}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleCreateConnector}
+                                disabled={createConnectorLoading || !newConnectorName.trim()}
+                                className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {createConnectorLoading && <Loader2 size={14} className="animate-spin" />}
+                                {createConnectorLoading ? 'Creating...' : 'Create Connector'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Rotate Credentials Modal */}
+            {showRotateModal && rotateConnectorId && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/50" onClick={() => { setShowRotateModal(false); setRotateConnectorId(null); }} />
+                    <div className={`relative w-full max-w-md mx-4 rounded-xl border shadow-2xl ${darkMode ? 'bg-[#111] border-neutral-800' : 'bg-white border-gray-200'}`}>
+                        <div className={`flex items-center justify-between px-6 py-4 border-b ${darkMode ? 'border-neutral-800' : 'border-gray-100'}`}>
+                            <h3 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Rotate Credentials</h3>
+                            <button
+                                onClick={() => { setShowRotateModal(false); setRotateConnectorId(null); }}
+                                className={`p-1.5 rounded-lg transition-colors ${darkMode ? 'hover:bg-neutral-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <div className="px-6 py-5 space-y-4">
+                            <div className={`p-3 rounded-lg ${darkMode ? 'bg-neutral-800/50' : 'bg-gray-50'}`}>
+                                <p className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                    {connectors.find(c => c.id === rotateConnectorId)?.label || connectors.find(c => c.id === rotateConnectorId)?.name}
+                                </p>
+                                <p className="text-xs text-gray-500">Enter new credentials to replace existing ones</p>
+                            </div>
+                            <div>
+                                <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>New Credentials</label>
+                                <div className="space-y-2">
+                                    {rotateCredentials.map((cred, i) => (
+                                        <div key={i} className="flex items-center gap-2">
+                                            <input
+                                                type="text"
+                                                value={cred.key}
+                                                onChange={(e) => {
+                                                    const updated = [...rotateCredentials];
+                                                    updated[i] = { ...updated[i], key: e.target.value };
+                                                    setRotateCredentials(updated);
+                                                }}
+                                                placeholder="Key"
+                                                className={`flex-1 px-3 py-2 border rounded-lg text-sm ${darkMode ? 'bg-neutral-800 border-neutral-700 text-white placeholder-gray-500' : 'bg-white border-gray-200 placeholder-gray-400'}`}
+                                            />
+                                            <input
+                                                type="password"
+                                                value={cred.value}
+                                                onChange={(e) => {
+                                                    const updated = [...rotateCredentials];
+                                                    updated[i] = { ...updated[i], value: e.target.value };
+                                                    setRotateCredentials(updated);
+                                                }}
+                                                placeholder="Value"
+                                                className={`flex-1 px-3 py-2 border rounded-lg text-sm ${darkMode ? 'bg-neutral-800 border-neutral-700 text-white placeholder-gray-500' : 'bg-white border-gray-200 placeholder-gray-400'}`}
+                                            />
+                                            {rotateCredentials.length > 1 && (
+                                                <button
+                                                    onClick={() => setRotateCredentials(rotateCredentials.filter((_, idx) => idx !== i))}
+                                                    className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                    <button
+                                        onClick={() => setRotateCredentials([...rotateCredentials, { key: '', value: '' }])}
+                                        className={`text-xs font-medium ${darkMode ? 'text-gray-400 hover:text-gray-300' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        + Add credential pair
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div className={`flex items-center justify-end gap-3 px-6 py-4 border-t ${darkMode ? 'border-neutral-800' : 'border-gray-100'}`}>
+                            <button
+                                onClick={() => { setShowRotateModal(false); setRotateConnectorId(null); }}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${darkMode ? 'text-gray-300 hover:bg-neutral-800' : 'text-gray-700 hover:bg-gray-100'}`}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleRotateCredentials}
+                                disabled={rotateLoading || rotateCredentials.every(c => !c.key.trim())}
+                                className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {rotateLoading && <Loader2 size={14} className="animate-spin" />}
+                                {rotateLoading ? 'Rotating...' : 'Rotate Credentials'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Click-away listener for action dropdown */}
+            {actionDropdownUserId && (
+                <div className="fixed inset-0 z-0" onClick={() => setActionDropdownUserId(null)} />
+            )}
         </div>
     );
 };

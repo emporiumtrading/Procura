@@ -10,14 +10,24 @@ export default defineConfig(({ mode }) => {
         host: '0.0.0.0',
       },
       plugins: [react()],
-      define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
-      },
+      // API keys must NOT be bundled into client-side code.
+      // Use VITE_* prefixed env vars for public config only (e.g. Supabase URL).
+      define: {},
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
-      }
+      },
+      build: {
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              vendor: ['react', 'react-dom', 'react-router-dom'],
+              supabase: ['@supabase/supabase-js'],
+              icons: ['lucide-react'],
+            },
+          },
+        },
+      },
     };
 });

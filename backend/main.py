@@ -6,14 +6,28 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 import structlog
 import uvicorn
 
-from .config import settings
+from .config import settings as app_settings
 from .routers import opportunities, submissions, connectors, audit, admin, feeds
+from .routers import settings as settings_router
+from .routers import documents, follow_ups, correspondence
 # from .tasks.celery_app import celery_app  # Uncomment when Celery is configured
 
 logger = structlog.get_logger()
+
+# Rate limiter — Redis-backed in production, in-memory for dev
+_limiter_storage = app_settings.REDIS_URL if app_settings.is_production else "memory://"
+
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=[f"{app_settings.RATE_LIMIT_PER_MINUTE}/minute"],
+    storage_uri=_limiter_storage,
+)
 
 
 @asynccontextmanager
@@ -22,7 +36,7 @@ async def lifespan(app: FastAPI):
     Application lifespan events - startup and shutdown
     """
     # Startup
-    logger.info("Starting Procura API", environment=settings.ENVIRONMENT)
+    logger.info("Starting Procura API", environment=app_settings.ENVIRONMENT)
     
     # Initialize Celery beat schedule (uncomment when ready)
     # celery_app.conf.beat_schedule = {
@@ -44,10 +58,14 @@ app = FastAPI(
     title="Procura Ops API",
     description="Government Contract Opportunity Automation Platform",
     version="1.0.0",
-    docs_url="/docs" if settings.DEBUG else None,
-    redoc_url="/redoc" if settings.DEBUG else None,
+    docs_url="/docs" if app_settings.DEBUG else None,
+    redoc_url="/redoc" if app_settings.DEBUG else None,
     lifespan=lifespan
 )
+
+# Wire rate limiter
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ===========================================
 # MIDDLEWARE
@@ -56,7 +74,7 @@ app = FastAPI(
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.allowed_origins,
+    allow_origins=app_settings.allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -118,7 +136,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
             "success": False,
-            "message": "Internal server error" if settings.is_production else str(exc)
+            "message": "Internal server error" if app_settings.is_production else str(exc)
         }
     )
 
@@ -163,6 +181,30 @@ app.include_router(
     tags=["Feeds"]
 )
 
+app.include_router(
+    settings_router.router,
+    prefix="/api/settings",
+    tags=["Settings"]
+)
+
+app.include_router(
+    documents.router,
+    prefix="/api/documents",
+    tags=["Documents"]
+)
+
+app.include_router(
+    follow_ups.router,
+    prefix="/api/follow-ups",
+    tags=["Follow-ups"]
+)
+
+app.include_router(
+    correspondence.router,
+    prefix="/api/correspondence",
+    tags=["Correspondence"]
+)
+
 
 # ===========================================
 # ROOT ENDPOINTS
@@ -175,7 +217,7 @@ async def root():
         "name": "Procura Ops API",
         "version": "1.0.0",
         "status": "healthy",
-        "environment": settings.ENVIRONMENT
+        "environment": app_settings.ENVIRONMENT
     }
 
 
@@ -187,7 +229,7 @@ async def health_check():
     health_status = {
         "status": "healthy",
         "checks": {},
-        "environment": settings.ENVIRONMENT
+        "environment": app_settings.ENVIRONMENT
     }
 
     # Check Supabase connection
@@ -200,10 +242,10 @@ async def health_check():
         health_status["status"] = "degraded"
 
     # Check Redis (only if configured for Celery)
-    if settings.REDIS_URL and not settings.REDIS_URL.startswith("redis://localhost"):
+    if app_settings.REDIS_URL and not app_settings.REDIS_URL.startswith("redis://localhost"):
         try:
             import redis
-            r = redis.from_url(settings.REDIS_URL, socket_timeout=2)
+            r = redis.from_url(app_settings.REDIS_URL, socket_timeout=2)
             r.ping()
             health_status["checks"]["redis"] = "connected"
         except Exception as e:
@@ -224,5 +266,5 @@ if __name__ == "__main__":
         "backend.main:app",
         host="0.0.0.0",
         port=int(os.getenv("PORT", 8001)),
-        reload=settings.DEBUG
+        reload=app_settings.DEBUG
     )

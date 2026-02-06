@@ -3,6 +3,8 @@ Procura Backend - FastAPI Dependencies
 Authentication middleware and common dependencies
 """
 from typing import Optional
+from datetime import datetime, timezone
+from collections import defaultdict
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from supabase import Client
@@ -80,7 +82,7 @@ async def get_current_user(
             profile = profile_response.data
         
         # Update last_active
-        db.table("profiles").update({"last_active": "now()"}).eq("id", user.id).execute()
+        db.table("profiles").update({"last_active": datetime.now(timezone.utc).isoformat()}).eq("id", user.id).execute()
         
         return profile
         
@@ -129,14 +131,24 @@ require_officer = require_role(["admin", "contract_officer"])
 
 
 class RateLimiter:
-    """Simple in-memory rate limiter (use Redis in production)"""
-    
+    """Sliding window in-memory rate limiter. Use Redis for multi-process production."""
+
     def __init__(self, requests_per_minute: int = 100):
         self.requests_per_minute = requests_per_minute
-        self._requests: dict = {}
-    
+        self._requests: dict[str, list[float]] = defaultdict(list)
+
     async def check(self, identifier: str) -> bool:
-        # TODO: Implement with Redis for production
+        now = datetime.now(timezone.utc).timestamp()
+        window_start = now - 60.0
+
+        # Prune expired entries
+        timestamps = self._requests[identifier]
+        self._requests[identifier] = [t for t in timestamps if t > window_start]
+
+        if len(self._requests[identifier]) >= self.requests_per_minute:
+            return False
+
+        self._requests[identifier].append(now)
         return True
 
 

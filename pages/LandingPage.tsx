@@ -10,7 +10,7 @@ type AuthMode = 'login' | 'signup' | 'forgot' | 'mfa';
 
 const LandingPage: React.FC = () => {
     const navigate = useNavigate();
-    const { signIn, signUp, resetPassword, verifyMFA } = useAuth();
+    const { signIn, signUp, resetPassword, verifyMFA, isMFAEnabled } = useAuth();
 
     const [mode, setMode] = useState<AuthMode>('login');
     const [email, setEmail] = useState('');
@@ -36,9 +36,13 @@ const LandingPage: React.FC = () => {
                 console.error('Login error:', error.message);
                 setError(error.message);
             } else {
-                console.log('Login successful! Navigating to dashboard...');
-                // Skip MFA check for now - direct navigation
-                navigate('/dashboard');
+                console.log('Login successful!');
+                // Check if MFA verification is needed before granting access
+                if (isMFAEnabled) {
+                    setMode('mfa');
+                } else {
+                    navigate('/dashboard');
+                }
             }
         } catch (err) {
             console.error('Login exception:', err);

@@ -22,6 +22,10 @@ class ProcuraAPI {
         this.token = null;
     }
 
+    getToken(): string | null {
+        return this.token;
+    }
+
     private async request<T>(
         method: string,
         endpoint: string,
@@ -148,6 +152,22 @@ class ProcuraAPI {
         return this.request<any>('GET', `/opportunities/${id}`);
     }
 
+    async createOpportunity(data: {
+        title: string;
+        agency: string;
+        external_ref: string;
+        source: string;
+        posted_date: string;
+        due_date: string;
+        description?: string;
+        naics_code?: string;
+        set_aside?: string;
+        estimated_value?: number;
+        raw_data?: Record<string, any>;
+    }) {
+        return this.request<any>('POST', '/opportunities', data);
+    }
+
     async updateOpportunity(id: string, data: any) {
         return this.request<any>('PATCH', `/opportunities/${id}`, data);
     }
@@ -222,8 +242,32 @@ class ProcuraAPI {
         return this.request<any>('POST', `/connectors/${id}/test`);
     }
 
+    async createConnector(data: {
+        name: string;
+        label?: string;
+        portal_url?: string;
+        auth_type: string;
+        credentials: Record<string, string>;
+        schedule_cron?: string;
+        rate_limit_per_min?: number;
+    }) {
+        return this.request<any>('POST', '/connectors', data);
+    }
+
     async updateConnector(id: string, data: any) {
         return this.request<any>('PATCH', `/connectors/${id}`, data);
+    }
+
+    async rotateConnectorCredentials(id: string, newCredentials: Record<string, string>) {
+        return this.request<any>('POST', `/connectors/${id}/rotate`, newCredentials);
+    }
+
+    async revokeConnector(id: string) {
+        return this.request<any>('DELETE', `/connectors/${id}`);
+    }
+
+    async getConnectorRuns(id: string, limit: number = 50) {
+        return this.request<any>('GET', `/connectors/${id}/runs?limit=${limit}`);
     }
 
     // ============================================
@@ -289,6 +333,10 @@ class ProcuraAPI {
         return this.request<any>('GET', '/admin/discovery/config');
     }
 
+    async updateDiscoveryConfig(config: { settings: Record<string, any> }) {
+        return this.request<any>('PUT', '/admin/discovery/config', config);
+    }
+
     async triggerDiscovery(source?: string) {
         return this.request<any>('POST', '/admin/discovery/trigger', { source });
     }
@@ -303,6 +351,18 @@ class ProcuraAPI {
 
     async getWorkflowConfig() {
         return this.request<any>('GET', '/admin/workflows/config');
+    }
+
+    async updateWorkflowConfig(config: { autonomy_enabled: boolean; autonomy_threshold: number; approval_steps?: any[] }) {
+        return this.request<any>('PUT', '/admin/workflows/config', config);
+    }
+
+    async getSystemSetting(key: string) {
+        return this.request<any>('GET', `/admin/settings/${key}`);
+    }
+
+    async deleteSystemSetting(key: string) {
+        return this.request<any>('DELETE', `/admin/settings/${key}`);
     }
 
     async getJobs(status?: string) {
@@ -358,6 +418,52 @@ class ProcuraAPI {
         return this.request<any>('DELETE', `/admin/users/${id}`);
     }
 
+    // ============================================
+    // Settings
+    // ============================================
+
+    async getAPIKeys() {
+        return this.request<any>('GET', '/settings/api-keys');
+    }
+
+    async updateAPIKey(keyName: string, value: string) {
+        return this.request<any>('PUT', `/settings/api-keys/${keyName}`, { value });
+    }
+
+    async bulkUpdateAPIKeys(keys: Record<string, string>) {
+        return this.request<any>('PUT', '/settings/api-keys', { keys });
+    }
+
+    async deleteAPIKey(keyName: string) {
+        return this.request<any>('DELETE', `/settings/api-keys/${keyName}`);
+    }
+
+    async testAPIKey(keyName: string) {
+        return this.request<any>('POST', `/settings/api-keys/${keyName}/test`);
+    }
+
+    async getGeneralSettings() {
+        return this.request<any>('GET', '/settings/general');
+    }
+
+    async updateGeneralSettings(data: {
+        llm_provider?: string;
+        llm_model?: string;
+        llm_temperature?: number;
+        llm_max_tokens?: number;
+        openmanus_url?: string;
+    }) {
+        return this.request<any>('PUT', '/settings/general', data);
+    }
+
+    async reloadSettings() {
+        return this.request<any>('POST', '/settings/reload');
+    }
+
+    async getAutomationStatus() {
+        return this.request<any>('GET', '/settings/automation/status');
+    }
+
     async approveSubmission(id: string, step: string, notes?: string) {
         const query = new URLSearchParams();
         query.set('step', step);
@@ -375,6 +481,165 @@ class ProcuraAPI {
 
     async updateSubmissionTask(submissionId: string, taskId: string, completed: boolean) {
         return this.request<any>('PATCH', `/submissions/${submissionId}/tasks/${taskId}?completed=${completed}`);
+    }
+
+    async syncSubmissionOpportunity(submissionId: string) {
+        return this.request<any>('POST', `/submissions/${submissionId}/sync-opportunity`);
+    }
+
+    // ============================================
+    // Document Library
+    // ============================================
+
+    async listDocuments(params?: { category?: string; search?: string; tags?: string; page?: number; limit?: number }) {
+        const query = new URLSearchParams();
+        if (params?.category) query.set('category', params.category);
+        if (params?.search) query.set('search', params.search);
+        if (params?.tags) query.set('tags', params.tags);
+        if (params?.page) query.set('page', String(params.page));
+        if (params?.limit) query.set('limit', String(params.limit));
+        return this.request<any>('GET', `/documents?${query.toString()}`);
+    }
+
+    async getDocument(id: string) {
+        return this.request<any>('GET', `/documents/${id}`);
+    }
+
+    async uploadDocument(formData: FormData) {
+        const headers: Record<string, string> = {};
+        if (this.token) {
+            headers['Authorization'] = `Bearer ${this.token}`;
+        }
+        const response = await fetch(`${API_BASE}/documents`, {
+            method: 'POST',
+            headers,
+            body: formData,
+        });
+        return response.json();
+    }
+
+    async uploadDocumentVersion(documentId: string, formData: FormData) {
+        const headers: Record<string, string> = {};
+        if (this.token) {
+            headers['Authorization'] = `Bearer ${this.token}`;
+        }
+        const response = await fetch(`${API_BASE}/documents/${documentId}/new-version`, {
+            method: 'POST',
+            headers,
+            body: formData,
+        });
+        return response.json();
+    }
+
+    async updateDocument(id: string, data: Record<string, any>) {
+        const query = new URLSearchParams();
+        Object.entries(data).forEach(([k, v]) => { if (v !== undefined) query.set(k, String(v)); });
+        return this.request<any>('PATCH', `/documents/${id}?${query.toString()}`);
+    }
+
+    async deleteDocument(id: string) {
+        return this.request<any>('DELETE', `/documents/${id}`);
+    }
+
+    async linkDocumentToSubmission(documentId: string, submissionId: string, notes?: string) {
+        const query = notes ? `?notes=${encodeURIComponent(notes)}` : '';
+        return this.request<any>('POST', `/documents/${documentId}/link/${submissionId}${query}`);
+    }
+
+    async unlinkDocumentFromSubmission(documentId: string, submissionId: string) {
+        return this.request<any>('DELETE', `/documents/${documentId}/link/${submissionId}`);
+    }
+
+    // ============================================
+    // Follow-ups
+    // ============================================
+
+    async listFollowUps(params?: { status?: string; submission_id?: string; page?: number }) {
+        const query = new URLSearchParams();
+        if (params?.status) query.set('status', params.status);
+        if (params?.submission_id) query.set('submission_id', params.submission_id);
+        if (params?.page) query.set('page', String(params.page));
+        return this.request<any>('GET', `/follow-ups?${query.toString()}`);
+    }
+
+    async getFollowUp(id: string) {
+        return this.request<any>('GET', `/follow-ups/${id}`);
+    }
+
+    async createFollowUp(submissionId: string, checkIntervalHours: number = 24) {
+        return this.request<any>('POST', `/follow-ups?submission_id=${submissionId}&check_interval_hours=${checkIntervalHours}`);
+    }
+
+    async updateFollowUp(id: string, data: { status_update?: string; auto_check?: boolean; check_interval_hours?: number }) {
+        const query = new URLSearchParams();
+        Object.entries(data).forEach(([k, v]) => { if (v !== undefined) query.set(k, String(v)); });
+        return this.request<any>('PATCH', `/follow-ups/${id}?${query.toString()}`);
+    }
+
+    async triggerFollowUpCheck(id: string) {
+        return this.request<any>('POST', `/follow-ups/${id}/check-now`);
+    }
+
+    async deleteFollowUp(id: string) {
+        return this.request<any>('DELETE', `/follow-ups/${id}`);
+    }
+
+    // ============================================
+    // Correspondence
+    // ============================================
+
+    async listCorrespondence(params?: { type?: string; status?: string; submission_id?: string; search?: string; page?: number }) {
+        const query = new URLSearchParams();
+        if (params?.type) query.set('type', params.type);
+        if (params?.status) query.set('status', params.status);
+        if (params?.submission_id) query.set('submission_id', params.submission_id);
+        if (params?.search) query.set('search', params.search);
+        if (params?.page) query.set('page', String(params.page));
+        return this.request<any>('GET', `/correspondence?${query.toString()}`);
+    }
+
+    async getCorrespondenceStats() {
+        return this.request<any>('GET', '/correspondence/stats');
+    }
+
+    async getCorrespondence(id: string) {
+        return this.request<any>('GET', `/correspondence/${id}`);
+    }
+
+    async createCorrespondence(data: {
+        submission_id?: string; opportunity_id?: string; type: string;
+        subject: string; body?: string; source?: string; sender?: string;
+        award_amount?: number; contract_number?: string;
+    }) {
+        return this.request<any>('POST', '/correspondence', data);
+    }
+
+    async updateCorrespondenceStatus(id: string, status: string) {
+        return this.request<any>('PATCH', `/correspondence/${id}/status?new_status=${status}`);
+    }
+
+    async respondToCorrespondence(id: string, notes: string) {
+        return this.request<any>('POST', `/correspondence/${id}/respond`, { response_notes: notes });
+    }
+
+    async aiAnalyzeCorrespondence(id: string) {
+        return this.request<any>('POST', `/correspondence/${id}/ai-analyze`);
+    }
+
+    // ============================================
+    // Notifications
+    // ============================================
+
+    async listNotifications(unreadOnly: boolean = false, page: number = 1) {
+        return this.request<any>('GET', `/correspondence/notifications/list?unread_only=${unreadOnly}&page=${page}`);
+    }
+
+    async markNotificationRead(id: string) {
+        return this.request<any>('PATCH', `/correspondence/notifications/${id}/read`);
+    }
+
+    async markAllNotificationsRead() {
+        return this.request<any>('POST', '/correspondence/notifications/mark-all-read');
     }
 }
 
