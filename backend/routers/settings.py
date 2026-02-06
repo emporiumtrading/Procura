@@ -216,17 +216,15 @@ async def test_api_key(
                 }
 
         elif key_name == "OPENMANUS_API_KEY":
-            import httpx
-            url = settings.OPENMANUS_API_URL
-            async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.get(
-                    f"{url}/health",
-                    headers={"Authorization": f"Bearer {resolved}"} if resolved else {},
-                )
-                return {
-                    "success": resp.status_code == 200,
-                    "message": "Connected" if resp.status_code == 200 else f"HTTP {resp.status_code}",
-                }
+            # OpenManus key is no longer needed (browser-use uses LLM keys directly)
+            # but we test that browser automation prerequisites are available
+            from ..automation.openmanus_client import OpenManusClient
+            client = OpenManusClient(headless=True)
+            healthy = await client.health_check()
+            return {
+                "success": healthy,
+                "message": "Browser automation ready" if healthy else "Missing LLM key or Playwright browser",
+            }
 
         return {"success": False, "error": "No test available for this key"}
 
@@ -312,3 +310,60 @@ async def reload_settings(
     """Force reload API keys from the database."""
     invalidate_cache()
     return {"success": True, "message": "Settings cache invalidated"}
+
+
+# ============================================
+# Automation Health
+# ============================================
+
+@router.get("/automation/status")
+async def automation_status(
+    user: dict = Depends(require_role(["admin"]))
+):
+    """Check browser automation (OpenManus/browser-use) readiness."""
+    from ..automation.openmanus_client import OpenManusClient
+
+    status = {
+        "browser_use_installed": False,
+        "playwright_installed": False,
+        "chromium_available": False,
+        "llm_configured": False,
+        "ready": False,
+    }
+
+    try:
+        import browser_use
+        status["browser_use_installed"] = True
+    except ImportError:
+        pass
+
+    try:
+        import playwright
+        status["playwright_installed"] = True
+    except ImportError:
+        pass
+
+    try:
+        from playwright.async_api import async_playwright
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            await browser.close()
+            status["chromium_available"] = True
+    except Exception:
+        pass
+
+    try:
+        from ..automation.openmanus_client import _build_llm
+        _build_llm()
+        status["llm_configured"] = True
+    except Exception:
+        pass
+
+    status["ready"] = all([
+        status["browser_use_installed"],
+        status["playwright_installed"],
+        status["chromium_available"],
+        status["llm_configured"],
+    ])
+
+    return status

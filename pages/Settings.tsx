@@ -45,6 +45,10 @@ const Settings: React.FC = () => {
   const [generalDirty, setGeneralDirty] = useState(false);
   const [savingGeneral, setSavingGeneral] = useState(false);
 
+  // Automation status
+  const [automationStatus, setAutomationStatus] = useState<Record<string, boolean> | null>(null);
+  const [automationLoading, setAutomationLoading] = useState(false);
+
   // Expanded sections
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     discovery: true,
@@ -83,10 +87,25 @@ const Settings: React.FC = () => {
     }
   }, []);
 
+  const loadAutomationStatus = useCallback(async () => {
+    setAutomationLoading(true);
+    try {
+      const response = await api.getAutomationStatus();
+      if (response.data) {
+        setAutomationStatus(response.data);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setAutomationLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadAPIKeys();
     loadGeneral();
-  }, [loadAPIKeys, loadGeneral]);
+    loadAutomationStatus();
+  }, [loadAPIKeys, loadGeneral, loadAutomationStatus]);
 
   const handleSaveKey = async (keyName: string) => {
     const value = keyInputs[keyName]?.trim();
@@ -500,28 +519,61 @@ const Settings: React.FC = () => {
                   </div>
                 </div>
 
-                {/* OpenManus Configuration */}
+                {/* Browser Automation Status */}
                 <div className="rounded-2xl border border-gray-200 bg-white p-6 space-y-5">
-                  <div className="flex items-center gap-3 mb-1">
-                    <div className="h-10 w-10 rounded-xl bg-gray-100 flex items-center justify-center">
-                      <Bot size={20} className="text-gray-600" />
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-xl bg-gray-100 flex items-center justify-center">
+                        <Bot size={20} className="text-gray-600" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-900">Browser Automation</h3>
+                        <p className="text-xs text-gray-500">OpenManus / browser-use powered submission engine</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-900">Automation</h3>
-                      <p className="text-xs text-gray-500">Browser automation service configuration</p>
-                    </div>
+                    <button
+                      onClick={loadAutomationStatus}
+                      disabled={automationLoading}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                    >
+                      {automationLoading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                      Check Status
+                    </button>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1.5">OpenManus API URL</label>
-                    <input
-                      type="url"
-                      value={general.openmanus_url}
-                      onChange={(e) => { setGeneral({ ...general, openmanus_url: e.target.value }); setGeneralDirty(true); }}
-                      placeholder="http://localhost:8080"
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-gray-900 outline-none font-mono"
-                    />
-                  </div>
+                  {automationStatus ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        { key: 'browser_use_installed', label: 'browser-use library' },
+                        { key: 'playwright_installed', label: 'Playwright' },
+                        { key: 'chromium_available', label: 'Chromium browser' },
+                        { key: 'llm_configured', label: 'LLM API key' },
+                      ].map(({ key, label }) => (
+                        <div key={key} className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
+                          automationStatus[key]
+                            ? 'bg-green-50 text-green-700 border border-green-200'
+                            : 'bg-red-50 text-red-700 border border-red-200'
+                        }`}>
+                          {automationStatus[key] ? <CheckCircle size={14} /> : <XCircle size={14} />}
+                          <span className="font-medium">{label}</span>
+                        </div>
+                      ))}
+                      <div className={`col-span-2 flex items-center gap-2 p-3 rounded-lg text-sm font-semibold ${
+                        automationStatus.ready
+                          ? 'bg-green-100 text-green-800 border border-green-300'
+                          : 'bg-amber-50 text-amber-800 border border-amber-200'
+                      }`}>
+                        {automationStatus.ready ? <CheckCircle size={16} /> : <AlertTriangle size={16} />}
+                        {automationStatus.ready ? 'Automation Ready' : 'Automation Not Ready — configure missing items above'}
+                      </div>
+                    </div>
+                  ) : automationLoading ? (
+                    <div className="flex items-center justify-center py-6 text-gray-400">
+                      <Loader2 size={20} className="animate-spin mr-2" /> Checking prerequisites...
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-400 text-center py-4">Click "Check Status" to verify automation readiness</p>
+                  )}
                 </div>
 
                 {/* Environment Info (read-only) */}

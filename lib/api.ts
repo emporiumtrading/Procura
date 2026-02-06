@@ -400,6 +400,10 @@ class ProcuraAPI {
         return this.request<any>('POST', '/settings/reload');
     }
 
+    async getAutomationStatus() {
+        return this.request<any>('GET', '/settings/automation/status');
+    }
+
     async approveSubmission(id: string, step: string, notes?: string) {
         const query = new URLSearchParams();
         query.set('step', step);
