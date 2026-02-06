@@ -36,13 +36,17 @@ const ResetPassword: React.FC = () => {
             setError('');
 
             try {
-                const search = new URLSearchParams(location.search);
-                const code = search.get('code');
+                // Check both standard query params and hash params for the code
+                const searchParams = new URLSearchParams(window.location.search);
+                const hashQuery = window.location.hash.split('?')[1] || '';
+                const hashParams = new URLSearchParams(hashQuery);
+                const code = searchParams.get('code') || hashParams.get('code');
 
                 const { data: initial } = await supabase.auth.getSession();
                 if (!initial.session && code) {
                     const { error } = await supabase.auth.exchangeCodeForSession(code);
                     if (error && active) {
+                        console.error('Exchange error:', error);
                         setError('Reset link is invalid or expired. Request a new one.');
                     }
                 }
