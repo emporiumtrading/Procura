@@ -152,6 +152,22 @@ class ProcuraAPI {
         return this.request<any>('GET', `/opportunities/${id}`);
     }
 
+    async createOpportunity(data: {
+        title: string;
+        agency: string;
+        external_ref: string;
+        source: string;
+        posted_date: string;
+        due_date: string;
+        description?: string;
+        naics_code?: string;
+        set_aside?: string;
+        estimated_value?: number;
+        raw_data?: Record<string, any>;
+    }) {
+        return this.request<any>('POST', '/opportunities', data);
+    }
+
     async updateOpportunity(id: string, data: any) {
         return this.request<any>('PATCH', `/opportunities/${id}`, data);
     }
