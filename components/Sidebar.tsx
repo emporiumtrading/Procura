@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FileText, ShieldAlert, Lock, Briefcase, Gem, ChevronLeft, ChevronRight, LogOut, Settings } from 'lucide-react';
+import { LayoutDashboard, FileText, ShieldAlert, Lock, Briefcase, Gem, ChevronLeft, ChevronRight, LogOut, Settings, FolderOpen, CalendarClock, Mail } from 'lucide-react';
 
 const Sidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -42,6 +42,22 @@ const Sidebar = () => {
         <NavLink to="/workspace" className={navItemClass} title="Proposal workspace">
           <Briefcase size={20} className="shrink-0" />
           <span className={`text-sm font-medium whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 hidden' : 'w-auto opacity-100 block'}`}>Workspace</span>
+        </NavLink>
+        <NavLink to="/documents" className={navItemClass} title="Reusable document library">
+          <FolderOpen size={20} className="shrink-0" />
+          <span className={`text-sm font-medium whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 hidden' : 'w-auto opacity-100 block'}`}>Documents</span>
+        </NavLink>
+
+        {!isCollapsed && <div className="my-2 border-t border-gray-100 dark:border-neutral-800 mx-3"></div>}
+        {!isCollapsed && <p className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest animate-in fade-in duration-300">Tracking</p>}
+
+        <NavLink to="/follow-ups" className={navItemClass} title="Application follow-up tracking">
+          <CalendarClock size={20} className="shrink-0" />
+          <span className={`text-sm font-medium whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 hidden' : 'w-auto opacity-100 block'}`}>Follow-ups</span>
+        </NavLink>
+        <NavLink to="/correspondence" className={navItemClass} title="Awards, communications & notifications">
+          <Mail size={20} className="shrink-0" />
+          <span className={`text-sm font-medium whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 hidden' : 'w-auto opacity-100 block'}`}>Correspondence</span>
         </NavLink>
 
         {!isCollapsed && <div className="my-2 border-t border-gray-100 dark:border-neutral-800 mx-3"></div>}

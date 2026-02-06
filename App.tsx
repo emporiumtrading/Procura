@@ -11,6 +11,9 @@ import SubmissionWorkspace from './pages/SubmissionWorkspace';
 import AccessDenied from './pages/AccessDenied';
 import AdminDashboard from './pages/AdminDashboard';
 import Settings from './pages/Settings';
+import DocumentLibrary from './pages/DocumentLibrary';
+import FollowUps from './pages/FollowUps';
+import Correspondence from './pages/Correspondence';
 
 // Protected Route wrapper
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -45,6 +48,9 @@ const AppLayout: React.FC = () => {
         <Route path="/workspace" element={<SubmissionWorkspace />} />
         <Route path="/workspace/:submissionId" element={<SubmissionWorkspace />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/documents" element={<DocumentLibrary />} />
+        <Route path="/follow-ups" element={<FollowUps />} />
+        <Route path="/correspondence" element={<Correspondence />} />
         <Route path="/access-denied" element={<AccessDenied />} />
       </Routes>
     </div>

@@ -9,7 +9,7 @@ celery_app = Celery(
     "procura",
     broker=settings.celery_broker,
     backend=settings.celery_backend,
-    include=["backend.tasks.discovery"]
+    include=["backend.tasks.discovery", "backend.tasks.follow_ups"]
 )
 
 # Configuration
@@ -37,5 +37,18 @@ celery_app.conf.beat_schedule = {
         "task": "backend.tasks.discovery.run_discovery_task",
         "schedule": 3600.0,  # 1 hour
         "args": ["sam"],
+    },
+    "discovery-usaspending-every-30min": {
+        "task": "backend.tasks.discovery.run_discovery_task",
+        "schedule": 1800.0,  # 30 minutes
+        "args": ["usaspending"],
+    },
+    "follow-up-checks-every-hour": {
+        "task": "backend.tasks.follow_ups.run_follow_up_checks",
+        "schedule": 3600.0,  # 1 hour
+    },
+    "opportunity-sync-daily": {
+        "task": "backend.tasks.follow_ups.sync_all_submission_opportunities",
+        "schedule": 86400.0,  # 24 hours
     },
 }

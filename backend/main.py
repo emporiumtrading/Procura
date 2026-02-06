@@ -12,6 +12,7 @@ import uvicorn
 from .config import settings as app_settings
 from .routers import opportunities, submissions, connectors, audit, admin, feeds
 from .routers import settings as settings_router
+from .routers import documents, follow_ups, correspondence
 # from .tasks.celery_app import celery_app  # Uncomment when Celery is configured
 
 logger = structlog.get_logger()
@@ -168,6 +169,24 @@ app.include_router(
     settings_router.router,
     prefix="/api/settings",
     tags=["Settings"]
+)
+
+app.include_router(
+    documents.router,
+    prefix="/api/documents",
+    tags=["Documents"]
+)
+
+app.include_router(
+    follow_ups.router,
+    prefix="/api/follow-ups",
+    tags=["Follow-ups"]
+)
+
+app.include_router(
+    correspondence.router,
+    prefix="/api/correspondence",
+    tags=["Correspondence"]
 )
 
 
