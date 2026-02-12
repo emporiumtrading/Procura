@@ -71,14 +71,27 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # MIDDLEWARE
 # ===========================================
 
-# CORS
+# CORS - Must be added FIRST to handle preflight requests properly
 app.add_middleware(
     CORSMiddleware,
     allow_origins=app_settings.allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600,  # Cache preflight requests for 1 hour
 )
+
+
+# Handle OPTIONS preflight requests explicitly
+@app.middleware("http")
+async def handle_preflight(request: Request, call_next):
+    """Explicitly handle OPTIONS preflight requests"""
+    if request.method == "OPTIONS":
+        # Let CORS middleware handle it - just pass through
+        response = await call_next(request)
+        return response
+    return await call_next(request)
 
 
 # Request logging middleware
@@ -87,9 +100,9 @@ async def log_requests(request: Request, call_next):
     """Log all requests with timing"""
     import time
     start_time = time.time()
-    
+
     response = await call_next(request)
-    
+
     process_time = (time.time() - start_time) * 1000
     logger.info(
         "Request completed",
@@ -98,7 +111,7 @@ async def log_requests(request: Request, call_next):
         status_code=response.status_code,
         duration_ms=round(process_time, 2)
     )
-    
+
     response.headers["X-Process-Time"] = str(round(process_time, 2))
     return response
 
