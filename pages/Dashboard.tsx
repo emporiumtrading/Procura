@@ -160,23 +160,6 @@ const Dashboard: React.FC = () => {
     loadOpportunities();
   }, []);
 
-  // Auto-select first opportunity on desktop load
-  useEffect(() => {
-    if (isDesktop && !selectedId && filteredOpportunities.length > 0) {
-      setSelectedId(filteredOpportunities[0].id);
-    }
-  }, [isDesktop, filteredOpportunities]);
-
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isDesktop) {
-        setSelectedId(null);
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isDesktop]);
-
   const filteredOpportunities = useMemo(() => {
     const needle = search.trim().toLowerCase();
     const naicsNeedle = naicsPrefix.trim();
@@ -279,6 +262,23 @@ const Dashboard: React.FC = () => {
     valueMin,
     valueMax,
   ]);
+
+  // Auto-select first opportunity on desktop load
+  useEffect(() => {
+    if (isDesktop && !selectedId && filteredOpportunities.length > 0) {
+      setSelectedId(filteredOpportunities[0].id);
+    }
+  }, [isDesktop, filteredOpportunities]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isDesktop) {
+        setSelectedId(null);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isDesktop]);
 
   const selectedOpportunity = useMemo(
     () => opportunities.find((o) => o.id === selectedId) ?? null,
@@ -447,7 +447,7 @@ const Dashboard: React.FC = () => {
 
   const bulkQualify = async () => {
     if (isBulkRunning) return;
-    const ids = Array.from(selectedIds);
+    const ids: string[] = Array.from(selectedIds);
     if (ids.length === 0) return;
 
     setIsBulkRunning(true);
@@ -473,7 +473,7 @@ const Dashboard: React.FC = () => {
 
   const bulkDisqualify = async () => {
     if (isBulkRunning) return;
-    const ids = Array.from(selectedIds);
+    const ids: string[] = Array.from(selectedIds);
     if (ids.length === 0) return;
 
     const reason = window.prompt('Disqualify reason for all selected (optional):') ?? undefined;

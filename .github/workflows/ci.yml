@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: .
+        working-directory: ./
 
     steps:
       - uses: actions/checkout@v4
@@ -112,7 +112,10 @@ jobs:
           DEBUG: "true"
         run: |
           uvicorn backend.main:app --host 0.0.0.0 --port 8001 &
-          sleep 3
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8001/health && break
+            sleep 1
+          done
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -133,7 +136,10 @@ jobs:
       - name: Start frontend preview server
         run: |
           npx vite preview --port 3000 --host &
-          sleep 2
+          for i in $(seq 1 15); do
+            curl -sf http://localhost:3000/ && break
+            sleep 1
+          done
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium

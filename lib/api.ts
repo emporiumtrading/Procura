@@ -9,6 +9,8 @@ interface APIResponse<T> {
     data?: T;
     error?: string;
     status: number;
+    total?: number;
+    checks?: any[];
 }
 
 class ProcuraAPI {
@@ -86,6 +88,8 @@ class ProcuraAPI {
                 return {
                     data: data as T,
                     status: response.status,
+                    total: (data as any)?.total,
+                    checks: (data as any)?.checks,
                 };
             } catch (error) {
                 // Handle timeout and network errors

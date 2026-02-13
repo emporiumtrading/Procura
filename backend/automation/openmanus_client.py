@@ -46,7 +46,7 @@ def _build_llm():
         from browser_use.llm.anthropic.chat import ChatAnthropic
 
         return ChatAnthropic(
-            model=getattr(settings, "LLM_MODEL", "claude-sonnet-4-20250514"),
+            model=getattr(settings, "LLM_MODEL", "claude-sonnet-4-5-20250929"),
             api_key=anthropic_key,
             max_tokens=8192,
         )
@@ -65,7 +65,7 @@ def _build_llm():
         from browser_use.llm.anthropic.chat import ChatAnthropic
 
         return ChatAnthropic(
-            model="claude-sonnet-4-20250514",
+            model=getattr(settings, "LLM_MODEL", "claude-sonnet-4-5-20250929"),
             api_key=anthropic_key,
             max_tokens=8192,
         )

@@ -143,7 +143,7 @@ async def test_api_key(
             import anthropic
             client = anthropic.Anthropic(api_key=resolved)
             response = client.messages.create(
-                model="claude-sonnet-4-20250514",
+                model="claude-sonnet-4-5-20250929",
                 max_tokens=10,
                 messages=[{"role": "user", "content": "Say OK"}],
             )

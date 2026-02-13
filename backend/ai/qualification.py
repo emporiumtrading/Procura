@@ -82,7 +82,7 @@ async def qualify_opportunity(opportunity: Dict, force_refresh: bool = False) ->
     if isinstance(due_date, str):
         try:
             due_date = datetime.strptime(due_date, "%Y-%m-%d").date()
-        except:
+        except (ValueError, TypeError):
             due_date = None
     
     days_until_due = (due_date - date.today()).days if due_date else 30

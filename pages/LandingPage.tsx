@@ -27,16 +27,13 @@ const LandingPage: React.FC = () => {
         e.preventDefault();
         setLoading(true);
         setError('');
-        console.log('Login attempt for:', email);
 
         try {
             const { error } = await signIn(email, password);
 
             if (error) {
-                console.error('Login error:', error.message);
                 setError(error.message);
             } else {
-                console.log('Login successful!');
                 // Check if MFA verification is needed before granting access
                 if (isMFAEnabled) {
                     setMode('mfa');
@@ -44,8 +41,7 @@ const LandingPage: React.FC = () => {
                     navigate('/dashboard');
                 }
             }
-        } catch (err) {
-            console.error('Login exception:', err);
+        } catch {
             setError('An unexpected error occurred. Please try again.');
         } finally {
             setLoading(false);

@@ -306,7 +306,7 @@ const Settings: React.FC = () => {
     );
   };
 
-  const keysByCategory = Object.entries(keys).reduce<Record<string, [string, APIKeyInfo][]>>((acc, [keyName, info]) => {
+  const keysByCategory = (Object.entries(keys) as [string, APIKeyInfo][]).reduce<Record<string, [string, APIKeyInfo][]>>((acc, [keyName, info]) => {
     const cat = info.category || 'other';
     if (!acc[cat]) acc[cat] = [];
     acc[cat].push([keyName, info]);

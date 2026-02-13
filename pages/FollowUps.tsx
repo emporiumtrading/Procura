@@ -48,6 +48,7 @@ const FollowUps = () => {
     try {
       const res = await api.getFollowUp(id);
       if (res.checks) setCheckHistory(res.checks);
+      else if (res.data?.checks) setCheckHistory(res.data.checks);
     } catch {
       setError('Failed to load check history.');
     }
@@ -61,6 +62,7 @@ const FollowUps = () => {
       if (expandedId === id) {
         const res = await api.getFollowUp(id);
         if (res.checks) setCheckHistory(res.checks);
+        else if (res.data?.checks) setCheckHistory(res.data.checks);
       }
     } catch {
       setError('Manual check failed. Please try again.');

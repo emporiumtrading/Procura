@@ -57,7 +57,7 @@ async def _run_discovery(connector_name: str, since_days: int, task_id: str):
             try:
                 creds = decrypt_credentials(connector_record.data[0]["encrypted_credentials"])
                 api_key = creds.get("api_key")
-            except:
+            except Exception:
                 pass
 
         # Dev-friendly fallback: allow running discovery without seeding the `connectors` table.

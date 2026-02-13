@@ -245,12 +245,13 @@ const AuditVault = () => {
                                 {log.receiptId}
                               </code>
                               {log.hash && (
-                                <Copy
-                                  size={14}
-                                  className="opacity-0 group-hover/hash:opacity-100 text-gray-400 cursor-pointer hover:text-gray-900 transition-all"
-                                  onClick={() => navigator.clipboard.writeText(log.hash)}
-                                  title="Copy confirmation hash"
-                                />
+                                <span title="Copy confirmation hash">
+                                  <Copy
+                                    size={14}
+                                    className="opacity-0 group-hover/hash:opacity-100 text-gray-400 cursor-pointer hover:text-gray-900 transition-all"
+                                    onClick={() => navigator.clipboard.writeText(log.hash)}
+                                  />
+                                </span>
                               )}
                             </div>
                           </td>
