@@ -1,0 +1,70 @@
+services:
+  # ───────────────────────────────────────────────────────────
+  # FastAPI Backend
+  # ───────────────────────────────────────────────────────────
+  - type: web
+    name: procura-backend
+    runtime: python
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      # ── Application ──
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: PROCURA_ALLOWED_ORIGINS
+        value: https://procura-eight.vercel.app,https://procura-ops-command.vercel.app
+
+      # ── Supabase ── (set in Render dashboard as secret env vars)
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+
+      # ── LLM – Google Gemini (free tier) ──
+      - key: PROCURA_LLM_PROVIDER
+        value: google
+      - key: LLM_MODEL
+        value: gemini-2.0-flash
+      - key: LLM_MAX_TOKENS
+        value: "2048"
+      - key: LLM_TEMPERATURE
+        value: "0.3"
+      - key: GOOGLE_API_KEY
+        sync: false
+
+      # ── Discovery API Keys ──
+      - key: GOVCON_API_KEY
+        sync: false
+      - key: SAM_GOV_API_KEY
+        sync: false
+      - key: NEWS_API_KEY
+        sync: false
+
+      # ── Security Keys ──
+      # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+      - key: VAULT_ENCRYPTION_KEY
+        sync: false
+      # Generate with: python -c "import secrets; print(secrets.token_hex(32))"
+      - key: AUDIT_SIGNING_KEY
+        sync: false
+
+      # ── Redis (optional — enables Celery scheduled discovery) ──
+      # Add a Redis service on Render and set this to enable scheduled auto-discovery.
+      # Without it the app works fine; use the "Sync" button manually.
+      # - key: REDIS_URL
+      #   sync: false
+
+      # ── Rate limiting (in-memory fallback when no Redis) ──
+      - key: RATE_LIMIT_PER_MINUTE
+        value: "100"
+
+      # ── Discovery ──
+      - key: DISCOVERY_DEFAULT_INTERVAL_MINUTES
+        value: "15"

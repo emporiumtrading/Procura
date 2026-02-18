@@ -28,13 +28,40 @@ def _resolve_general_setting(key: str, fallback: Any) -> Any:
     return fallback
 
 
+_PROVIDER_DEFAULT_MODELS = {
+    "anthropic": "claude-3-5-sonnet-20241022",
+    "openai": "gpt-4o",
+    "google": "gemini-2.0-flash",
+}
+
+
+def _resolve_model_for_provider(provider: str, model: str) -> str:
+    """
+    Return the configured model unless it clearly belongs to a different provider,
+    in which case substitute the provider's default.  This prevents sending a
+    Claude model name to Google or an OpenAI model name to Anthropic.
+    """
+    if not model:
+        return _PROVIDER_DEFAULT_MODELS.get(provider, model)
+
+    model_lower = model.lower()
+    if provider == "google" and (model_lower.startswith("claude") or model_lower.startswith("gpt")):
+        return _PROVIDER_DEFAULT_MODELS["google"]
+    if provider == "openai" and (model_lower.startswith("claude") or model_lower.startswith("gemini")):
+        return _PROVIDER_DEFAULT_MODELS["openai"]
+    if provider == "anthropic" and (model_lower.startswith("gpt") or model_lower.startswith("gemini")):
+        return _PROVIDER_DEFAULT_MODELS["anthropic"]
+    return model
+
+
 class LLMClient:
     """Multi-provider LLM client with automatic fallback"""
 
     def __init__(self, provider: Optional[str] = None):
         resolved_provider = _resolve_general_setting("llm_provider", settings.PROCURA_LLM_PROVIDER)
         self.provider = provider or resolved_provider
-        self.model = _resolve_general_setting("llm_model", settings.LLM_MODEL)
+        raw_model = _resolve_general_setting("llm_model", settings.LLM_MODEL)
+        self.model = _resolve_model_for_provider(self.provider, raw_model)
         self.temperature = float(_resolve_general_setting("llm_temperature", settings.LLM_TEMPERATURE))
         self.max_tokens = int(_resolve_general_setting("llm_max_tokens", settings.LLM_MAX_TOKENS))
         self._client = None

@@ -1,14 +1,16 @@
 -- =====================================================
--- PRODUCTION FIX: Authentication & User Registration
--- Fixes: Foreign key constraint blocking profile creation
--- Version: 1.0
+-- PRODUCTION FIX: Foreign Key Constraint Issue
+-- Permanent solution for profiles_id_fkey blocking trigger
 -- =====================================================
 
--- Step 1: Make foreign key constraint DEFERRABLE
--- This allows the trigger to insert profiles during user creation
+-- Step 1: Drop and recreate the foreign key constraint as DEFERRABLE
+-- This allows the transaction to validate the constraint at commit time
+-- instead of immediately during the trigger execution
+
 ALTER TABLE public.profiles
     DROP CONSTRAINT IF EXISTS profiles_id_fkey;
 
+-- Recreate as DEFERRABLE INITIALLY DEFERRED
 ALTER TABLE public.profiles
     ADD CONSTRAINT profiles_id_fkey
     FOREIGN KEY (id)
@@ -16,16 +18,20 @@ ALTER TABLE public.profiles
     ON DELETE CASCADE
     DEFERRABLE INITIALLY DEFERRED;
 
--- Step 2: Recreate trigger function with proper configuration
+-- Step 2: Ensure trigger uses SECURITY DEFINER with correct search path
+-- This ensures the trigger has the right permissions to insert
+
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
+-- Critical: Set search path to avoid any schema issues
 SET search_path = public, auth
 AS $$
 BEGIN
+    -- Insert with all necessary fields
     INSERT INTO public.profiles (
         id,
         email,
@@ -38,7 +44,7 @@ BEGIN
         NEW.id,
         NEW.email,
         COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
-        'viewer',
+        'viewer',  -- Use string literal, will be auto-cast to user_role
         NOW(),
         NOW(),
         NOW()
@@ -65,16 +71,40 @@ GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role;
 GRANT ALL ON TABLE public.profiles TO service_role;
 GRANT SELECT, INSERT, UPDATE ON TABLE public.profiles TO authenticated;
 GRANT EXECUTE ON FUNCTION public.handle_new_user() TO service_role;
-GRANT SELECT ON TABLE auth.users TO service_role;
 
--- Step 5: Update RLS policies
+-- Step 5: Verify the user_role enum has correct values
+-- First check what values exist
+DO $$
+DECLARE
+    enum_values text[];
+BEGIN
+    SELECT array_agg(enumlabel::text ORDER BY enumsortorder)
+    INTO enum_values
+    FROM pg_enum e
+    JOIN pg_type t ON e.enumtypid = t.oid
+    WHERE t.typname = 'user_role';
+
+    RAISE NOTICE 'Current user_role values: %', enum_values;
+
+    -- Add 'viewer' if it doesn't exist (it should based on original schema)
+    IF NOT ('viewer' = ANY(enum_values)) THEN
+        ALTER TYPE user_role ADD VALUE 'viewer';
+        RAISE NOTICE 'Added viewer to user_role enum';
+    END IF;
+END $$;
+
+-- Step 6: Update RLS policies to work with service_role
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
+-- Drop all existing policies
 DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
 DROP POLICY IF EXISTS "Users can insert own profile" ON public.profiles;
 DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 DROP POLICY IF EXISTS "Service role has full access" ON public.profiles;
+DROP POLICY IF EXISTS "Enable read access for authenticated users" ON public.profiles;
+DROP POLICY IF EXISTS "Enable insert for authenticated users" ON public.profiles;
 
+-- Recreate policies
 CREATE POLICY "Users can view own profile"
     ON public.profiles
     FOR SELECT
@@ -94,6 +124,7 @@ CREATE POLICY "Users can update own profile"
     USING (id = auth.uid())
     WITH CHECK (id = auth.uid());
 
+-- Critical: Service role needs full access for trigger to work
 CREATE POLICY "Service role has full access"
     ON public.profiles
     FOR ALL
@@ -101,7 +132,10 @@ CREATE POLICY "Service role has full access"
     USING (true)
     WITH CHECK (true);
 
--- Step 6: Backfill any missing profiles
+-- Step 7: Grant auth.users read access to service_role (needed for FK check)
+GRANT SELECT ON TABLE auth.users TO service_role;
+
+-- Step 8: Backfill any missing profiles
 INSERT INTO public.profiles (id, email, full_name, role, created_at, updated_at, last_active)
 SELECT
     au.id,

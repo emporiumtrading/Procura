@@ -2,11 +2,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom';
 import {
   FileText, CheckCircle, Circle, Upload, Send,
-  ChevronRight, Clock, User, AlertTriangle, Sparkles,
-  Download, Eye, Loader2, Shield, DollarSign, UserCheck,
-  XCircle, ArrowRight
+  ChevronRight, AlertTriangle, Sparkles,
+  Download, Eye, Loader2, Shield, DollarSign,
+  XCircle, ArrowRight, Wand2, RefreshCw, Copy, CheckCheck
 } from 'lucide-react';
 import { api } from '../lib/api';
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type SubmissionTask = {
   id: string;
@@ -27,13 +29,23 @@ type SubmissionFile = {
   created_at?: string | null;
 };
 
+type ProposalSection = {
+  content: string;
+  status: 'generated' | 'error' | 'pending';
+  error?: string;
+};
+
+type ProposalSections = Record<string, ProposalSection>;
+
 type SubmissionData = {
   id: string;
+  opportunity_id: string;
   title: string;
   portal: string;
   due_date: string;
   status: string;
   approval_status: string;
+  proposal_sections?: ProposalSections | null;
   opportunity?: {
     title?: string;
     agency?: string;
@@ -44,6 +56,20 @@ type SubmissionData = {
   files?: SubmissionFile[] | null;
   tasks?: SubmissionTask[] | null;
 };
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const PROPOSAL_SECTIONS = [
+  { key: 'cover_letter', label: 'Cover Letter' },
+  { key: 'executive_summary', label: 'Executive Summary' },
+  { key: 'technical_approach', label: 'Technical Approach' },
+  { key: 'management_plan', label: 'Management Plan' },
+  { key: 'past_performance', label: 'Past Performance' },
+] as const;
+
+type SectionKey = typeof PROPOSAL_SECTIONS[number]['key'];
+
+// ── Main Component ────────────────────────────────────────────────────────────
 
 const SubmissionWorkspace: React.FC = () => {
   const { submissionId } = useParams();
@@ -58,6 +84,17 @@ const SubmissionWorkspace: React.FC = () => {
   const [complianceResult, setComplianceResult] = useState<any>(null);
   const [approvingStep, setApprovingStep] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Tab state ──────────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<'checklist' | 'proposal'>('checklist');
+
+  // ── Proposal state ─────────────────────────────────────────────────────────
+  const [proposalSections, setProposalSections] = useState<ProposalSections>({});
+  const [isGeneratingAll, setIsGeneratingAll] = useState(false);
+  const [generatingSection, setGeneratingSection] = useState<string | null>(null);
+  const [activeProposalSection, setActiveProposalSection] = useState<SectionKey>('cover_letter');
+  const [editedContent, setEditedContent] = useState<Record<string, string>>({});
+  const [copiedSection, setCopiedSection] = useState<string | null>(null);
 
   const loadSubmission = async () => {
     if (!submissionId) {
@@ -80,6 +117,18 @@ const SubmissionWorkspace: React.FC = () => {
     setSubmission(data);
     setTasks(data.tasks ?? []);
     setDocuments(data.files ?? []);
+
+    // Hydrate proposal sections from persisted data
+    if (data.proposal_sections) {
+      setProposalSections(data.proposal_sections);
+      // Pre-populate edit buffers with saved content
+      const edits: Record<string, string> = {};
+      Object.entries(data.proposal_sections).forEach(([k, v]) => {
+        edits[k] = v.content || '';
+      });
+      setEditedContent(edits);
+    }
+
     setIsLoading(false);
   };
 
@@ -89,6 +138,13 @@ const SubmissionWorkspace: React.FC = () => {
 
   const completedTasks = useMemo(() => tasks.filter((t) => t.completed).length, [tasks]);
   const progress = tasks.length ? Math.round((completedTasks / tasks.length) * 100) : 0;
+
+  const proposalProgress = useMemo(() => {
+    const generated = PROPOSAL_SECTIONS.filter(
+      (s) => proposalSections[s.key]?.status === 'generated'
+    ).length;
+    return Math.round((generated / PROPOSAL_SECTIONS.length) * 100);
+  }, [proposalSections]);
 
   const formatDate = (value: string) => {
     const parsed = new Date(value);
@@ -103,6 +159,8 @@ const SubmissionWorkspace: React.FC = () => {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  // ── Task handlers ──────────────────────────────────────────────────────────
+
   const handleToggleTask = async (task: SubmissionTask) => {
     if (!submissionId || task.locked) return;
     const nextCompleted = !task.completed;
@@ -111,7 +169,7 @@ const SubmissionWorkspace: React.FC = () => {
       setError(response.error);
       return;
     }
-    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, completed: nextCompleted } : t)));
+    await loadSubmission();
   };
 
   const handleSubmit = async () => {
@@ -166,8 +224,10 @@ const SubmissionWorkspace: React.FC = () => {
     }
   }, [submissionId]);
 
+  // ── Compliance check ───────────────────────────────────────────────────────
+
   const handleComplianceCheck = useCallback(async () => {
-    if (!submission?.opportunity) {
+    if (!submission?.opportunity_id) {
       setError('No opportunity data available for compliance check');
       return;
     }
@@ -177,8 +237,7 @@ const SubmissionWorkspace: React.FC = () => {
     setComplianceResult(null);
 
     try {
-      const opportunityId = submission.opportunity.external_ref || submission.id;
-      const response = await api.qualifyOpportunity(opportunityId);
+      const response = await api.qualifyOpportunity(submission.opportunity_id);
       if (response.error) {
         setError(response.error);
       } else {
@@ -191,16 +250,77 @@ const SubmissionWorkspace: React.FC = () => {
     }
   }, [submission]);
 
+  // ── Proposal generation ────────────────────────────────────────────────────
+
+  const handleGenerateSection = useCallback(async (sectionKey: string) => {
+    if (!submissionId) return;
+    setGeneratingSection(sectionKey);
+    setError(null);
+
+    try {
+      const response = await api.generateProposalSection(submissionId, sectionKey);
+      if (response.error) {
+        setError(response.error);
+        return;
+      }
+      if (response.data) {
+        const { content } = response.data;
+        setProposalSections(prev => ({
+          ...prev,
+          [sectionKey]: { content, status: 'generated' },
+        }));
+        setEditedContent(prev => ({ ...prev, [sectionKey]: content }));
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Generation failed');
+    } finally {
+      setGeneratingSection(null);
+    }
+  }, [submissionId]);
+
+  const handleGenerateAll = useCallback(async () => {
+    if (!submissionId) return;
+    setIsGeneratingAll(true);
+    setError(null);
+
+    try {
+      const response = await api.generateFullProposal(submissionId);
+      if (response.error) {
+        setError(response.error);
+        return;
+      }
+      if (response.data?.sections) {
+        setProposalSections(response.data.sections);
+        const edits: Record<string, string> = {};
+        Object.entries(response.data.sections).forEach(([k, v]) => {
+          edits[k] = v.content || '';
+        });
+        setEditedContent(edits);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Generation failed');
+    } finally {
+      setIsGeneratingAll(false);
+    }
+  }, [submissionId]);
+
+  const handleCopySection = useCallback(async (sectionKey: string) => {
+    const content = editedContent[sectionKey] || proposalSections[sectionKey]?.content || '';
+    await navigator.clipboard.writeText(content);
+    setCopiedSection(sectionKey);
+    setTimeout(() => setCopiedSection(null), 2000);
+  }, [editedContent, proposalSections]);
+
+  // ── Approval workflow ──────────────────────────────────────────────────────
+
   type ApprovalStepStatus = 'pending' | 'approved' | 'rejected' | 'locked';
 
   const getApprovalSteps = useCallback((): { label: string; stepName: string; icon: React.ReactNode; status: ApprovalStepStatus }[] => {
     const approvalStatus = submission?.approval_status || 'pending';
-
     const isRejected = approvalStatus === 'rejected';
 
     let legalStatus: ApprovalStepStatus = 'pending';
     let financeStatus: ApprovalStepStatus = 'locked';
-    let executiveStatus: ApprovalStepStatus = 'locked';
 
     if (approvalStatus === 'legal_approved') {
       legalStatus = 'approved';
@@ -208,23 +328,17 @@ const SubmissionWorkspace: React.FC = () => {
     } else if (approvalStatus === 'finance_approved') {
       legalStatus = 'approved';
       financeStatus = 'approved';
-      executiveStatus = 'pending';
     } else if (approvalStatus === 'complete') {
       legalStatus = 'approved';
       financeStatus = 'approved';
-      executiveStatus = 'approved';
     } else if (isRejected) {
-      // When rejected, mark the first non-approved step as rejected
-      // Since we don't track which step rejected, we mark the earliest pending step
       legalStatus = 'rejected';
       financeStatus = 'locked';
-      executiveStatus = 'locked';
     }
 
     return [
-      { label: 'Legal Review', stepName: 'legal_review', icon: <Shield size={16} />, status: legalStatus },
-      { label: 'Finance Review', stepName: 'finance_review', icon: <DollarSign size={16} />, status: financeStatus },
-      { label: 'Executive Approval', stepName: 'executive_approval', icon: <UserCheck size={16} />, status: executiveStatus },
+      { label: 'Legal Review', stepName: 'legal', icon: <Shield size={16} />, status: legalStatus },
+      { label: 'Finance Review', stepName: 'finance', icon: <DollarSign size={16} />, status: financeStatus },
     ];
   }, [submission?.approval_status]);
 
@@ -234,9 +348,7 @@ const SubmissionWorkspace: React.FC = () => {
     setError(null);
     try {
       const response = await api.approveSubmission(submissionId, stepName);
-      if (response.error) {
-        setError(response.error);
-      }
+      if (response.error) setError(response.error);
       await loadSubmission();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Approval failed');
@@ -248,18 +360,13 @@ const SubmissionWorkspace: React.FC = () => {
   const handleRejectStep = useCallback(async (stepName: string) => {
     if (!submissionId) return;
     const reason = window.prompt(`Reason for rejecting ${stepName.replace(/_/g, ' ')}:`);
-    if (reason === null) return; // User cancelled the prompt
-    if (!reason.trim()) {
-      setError('A rejection reason is required.');
-      return;
-    }
+    if (reason === null) return;
+    if (!reason.trim()) { setError('A rejection reason is required.'); return; }
     setApprovingStep(stepName);
     setError(null);
     try {
       const response = await api.rejectSubmission(submissionId, reason.trim());
-      if (response.error) {
-        setError(response.error);
-      }
+      if (response.error) setError(response.error);
       await loadSubmission();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Rejection failed');
@@ -267,6 +374,8 @@ const SubmissionWorkspace: React.FC = () => {
       setApprovingStep(null);
     }
   }, [submissionId]);
+
+  // ── Badge helpers ──────────────────────────────────────────────────────────
 
   const getStatusBadge = (status: string) => {
     const map: Record<string, { bg: string; text: string; label: string }> = {
@@ -301,6 +410,8 @@ const SubmissionWorkspace: React.FC = () => {
     );
   };
 
+  // ── Early returns ──────────────────────────────────────────────────────────
+
   if (!submissionId) {
     return (
       <div className="flex-1 flex items-center justify-center bg-white text-gray-500">
@@ -325,9 +436,17 @@ const SubmissionWorkspace: React.FC = () => {
     );
   }
 
+  const activeSectionData = proposalSections[activeProposalSection];
+  const activeSectionContent = editedContent[activeProposalSection] ?? activeSectionData?.content ?? '';
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
   return (
     <div className="flex-1 flex bg-white min-h-0">
+      {/* ── LEFT / MAIN PANEL ─────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col border-r border-gray-100 min-w-0">
+
+        {/* Header */}
         <div className="px-6 py-5 border-b border-gray-100">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -359,88 +478,80 @@ const SubmissionWorkspace: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          {/* Progress bars */}
+          <div className="flex items-center gap-6">
             <div className="flex-1">
               <div className="flex justify-between text-sm mb-1">
-                <span className="text-gray-600">Completion Progress</span>
+                <span className="text-gray-600">Checklist</span>
                 <span className="font-medium text-gray-900">{progress}%</span>
               </div>
-              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                 <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${progress}%` }} />
               </div>
             </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-500">Due Date</p>
-              <p className="font-semibold text-gray-900">{formatDate(submission?.due_date ?? '')}</p>
+            <div className="flex-1">
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-gray-600">Proposal</span>
+                <span className="font-medium text-gray-900">{proposalProgress}%</span>
+              </div>
+              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full bg-purple-500 rounded-full transition-all" style={{ width: `${proposalProgress}%` }} />
+              </div>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-xs text-gray-500">Due Date</p>
+              <p className="text-sm font-semibold text-gray-900">{formatDate(submission?.due_date ?? '')}</p>
             </div>
           </div>
         </div>
 
+        {/* Error banner */}
         {error && (
           <div className="px-6 py-3 border-b border-red-200 bg-red-50 text-sm text-red-700">
             {error}
           </div>
         )}
 
+        {/* Approval workflow */}
         <div className="px-6 py-4 border-b border-gray-100">
-          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-3">Approval Workflow</h2>
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Approval Workflow</h2>
           <div className="flex items-center gap-2">
             {getApprovalSteps().map((step, index) => (
               <React.Fragment key={step.label}>
-                {index > 0 && (
-                  <ArrowRight size={16} className="text-gray-300 shrink-0" />
-                )}
-                <div
-                  className={`flex-1 p-3 rounded-lg border transition-all ${
-                    step.status === 'approved'
-                      ? 'bg-green-50 border-green-200'
-                      : step.status === 'rejected'
-                        ? 'bg-red-50 border-red-200'
-                        : step.status === 'pending'
-                          ? 'bg-amber-50 border-amber-200'
-                          : 'bg-gray-50 border-gray-200'
-                  }`}
-                >
+                {index > 0 && <ArrowRight size={16} className="text-gray-300 shrink-0" />}
+                <div className={`flex-1 p-3 rounded-lg border transition-all ${
+                  step.status === 'approved' ? 'bg-green-50 border-green-200'
+                    : step.status === 'rejected' ? 'bg-red-50 border-red-200'
+                    : step.status === 'pending' ? 'bg-amber-50 border-amber-200'
+                    : 'bg-gray-50 border-gray-200'
+                }`}>
                   <div className="flex items-center gap-2">
                     <div className={`shrink-0 ${
-                      step.status === 'approved'
-                        ? 'text-green-600'
-                        : step.status === 'rejected'
-                          ? 'text-red-600'
-                          : step.status === 'pending'
-                            ? 'text-amber-600'
-                            : 'text-gray-400'
+                      step.status === 'approved' ? 'text-green-600'
+                        : step.status === 'rejected' ? 'text-red-600'
+                        : step.status === 'pending' ? 'text-amber-600'
+                        : 'text-gray-400'
                     }`}>
-                      {step.status === 'approved' ? (
-                        <CheckCircle size={18} />
-                      ) : step.status === 'rejected' ? (
-                        <XCircle size={18} />
-                      ) : (
-                        step.icon
-                      )}
+                      {step.status === 'approved' ? <CheckCircle size={18} />
+                        : step.status === 'rejected' ? <XCircle size={18} />
+                        : step.icon}
                     </div>
                     <div className="min-w-0">
                       <p className={`text-xs font-medium truncate ${
-                        step.status === 'approved'
-                          ? 'text-green-800'
-                          : step.status === 'rejected'
-                            ? 'text-red-800'
-                            : step.status === 'pending'
-                              ? 'text-amber-800'
-                              : 'text-gray-500'
-                      }`}>
-                        {step.label}
-                      </p>
+                        step.status === 'approved' ? 'text-green-800'
+                          : step.status === 'rejected' ? 'text-red-800'
+                          : step.status === 'pending' ? 'text-amber-800'
+                          : 'text-gray-500'
+                      }`}>{step.label}</p>
                       <p className={`text-xs ${
-                        step.status === 'approved'
-                          ? 'text-green-600'
-                          : step.status === 'rejected'
-                            ? 'text-red-600'
-                            : step.status === 'pending'
-                              ? 'text-amber-600'
-                              : 'text-gray-400'
+                        step.status === 'approved' ? 'text-green-600'
+                          : step.status === 'rejected' ? 'text-red-600'
+                          : step.status === 'pending' ? 'text-amber-600'
+                          : 'text-gray-400'
                       }`}>
-                        {step.status === 'approved' ? 'Approved' : step.status === 'rejected' ? 'Rejected' : step.status === 'pending' ? 'Pending' : 'Waiting'}
+                        {step.status === 'approved' ? 'Approved'
+                          : step.status === 'rejected' ? 'Rejected'
+                          : step.status === 'pending' ? 'Pending' : 'Waiting'}
                       </p>
                     </div>
                   </div>
@@ -449,25 +560,17 @@ const SubmissionWorkspace: React.FC = () => {
                       <button
                         onClick={() => handleApproveStep(step.stepName)}
                         disabled={approvingStep !== null}
-                        className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700 transition-all disabled:opacity-50"
+                        className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700 disabled:opacity-50"
                       >
-                        {approvingStep === step.stepName ? (
-                          <Loader2 size={12} className="animate-spin" />
-                        ) : (
-                          <CheckCircle size={12} />
-                        )}
+                        {approvingStep === step.stepName ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle size={12} />}
                         Approve
                       </button>
                       <button
                         onClick={() => handleRejectStep(step.stepName)}
                         disabled={approvingStep !== null}
-                        className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-red-600 text-white rounded text-xs font-medium hover:bg-red-700 transition-all disabled:opacity-50"
+                        className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-red-600 text-white rounded text-xs font-medium hover:bg-red-700 disabled:opacity-50"
                       >
-                        {approvingStep === step.stepName ? (
-                          <Loader2 size={12} className="animate-spin" />
-                        ) : (
-                          <XCircle size={12} />
-                        )}
+                        {approvingStep === step.stepName ? <Loader2 size={12} className="animate-spin" /> : <XCircle size={12} />}
                         Reject
                       </button>
                     </div>
@@ -478,107 +581,250 @@ const SubmissionWorkspace: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6">
-          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4">Checklist</h2>
-          {tasks.length === 0 ? (
-            <div className="text-sm text-gray-500">No tasks yet for this submission.</div>
-          ) : (
-            <div className="space-y-2">
-              {tasks.map((task) => (
-                <div
-                  key={task.id}
-                  className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
-                    task.completed
-                      ? 'bg-green-50 border-green-100'
-                      : task.locked
-                        ? 'bg-gray-50 border-gray-200'
-                        : 'bg-white border-gray-100 hover:border-gray-200'
-                  }`}
-                >
-                  <button className="shrink-0" onClick={() => handleToggleTask(task)} disabled={task.locked}>
-                    {task.completed ? (
-                      <CheckCircle size={20} className="text-green-600" />
-                    ) : (
-                      <Circle size={20} className={task.locked ? 'text-gray-300' : 'text-gray-400'} />
-                    )}
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium ${task.completed ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
-                      {task.title}
-                    </p>
-                    {task.subtitle && (
-                      <p className="text-xs text-gray-500 mt-0.5">{task.subtitle}</p>
-                    )}
-                  </div>
-                  {task.locked && (
-                    <span className="text-xs text-gray-500 flex items-center gap-1">
-                      <AlertTriangle size={12} /> Locked
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mt-8 mb-4">Documents</h2>
-          {documents.length === 0 ? (
-            <div className="text-sm text-gray-500">No documents uploaded yet.</div>
-          ) : (
-            <div className="space-y-2">
-              {documents.map((doc) => (
-                <div key={doc.id} className="flex items-center gap-3 p-3 border border-gray-100 rounded-lg hover:border-gray-200 transition-all">
-                  <div className="h-10 w-10 rounded-lg bg-gray-100 flex items-center justify-center">
-                    <FileText size={20} className="text-gray-500" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{doc.file_name}</p>
-                    <p className="text-xs text-gray-500">{formatFileSize(doc.file_size)} - {doc.created_at ? formatDate(doc.created_at) : 'Recently'}</p>
-                  </div>
-                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                    doc.scan_status === 'clean'
-                      ? 'bg-green-100 text-green-700'
-                      : doc.scan_status === 'pending'
-                        ? 'bg-amber-100 text-amber-700'
-                        : 'bg-gray-100 text-gray-600'
-                  }`}>
-                    {doc.scan_status ?? 'pending'}
-                  </span>
-                  <button className="p-1.5 hover:bg-gray-100 rounded-lg">
-                    <Download size={16} className="text-gray-400" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={handleFileUpload}
-            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.png,.jpg,.jpeg"
-          />
+        {/* Tab bar */}
+        <div className="flex border-b border-gray-100 px-6">
           <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className="flex items-center justify-center gap-2 w-full mt-4 py-3 border-2 border-dashed border-gray-200 rounded-lg text-sm text-gray-500 hover:border-gray-300 hover:text-gray-700 transition-all disabled:opacity-60"
+            onClick={() => setActiveTab('checklist')}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'checklist'
+                ? 'border-gray-900 text-gray-900'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
           >
-            {isUploading ? (
-              <>
-                <Loader2 size={16} className="animate-spin" />
-                Uploading...
-              </>
-            ) : (
-              <>
-                <Upload size={16} />
-                Upload Documents
-              </>
+            Checklist & Documents
+          </button>
+          <button
+            onClick={() => setActiveTab('proposal')}
+            className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'proposal'
+                ? 'border-purple-600 text-purple-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <Wand2 size={14} />
+            AI Proposal
+            {proposalProgress > 0 && (
+              <span className="bg-purple-100 text-purple-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                {proposalProgress}%
+              </span>
             )}
           </button>
         </div>
+
+        {/* ── TAB: CHECKLIST & DOCUMENTS ─────────────────────────────── */}
+        {activeTab === 'checklist' && (
+          <div className="flex-1 overflow-y-auto p-6">
+            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Checklist</h2>
+            {tasks.length === 0 ? (
+              <div className="text-sm text-gray-500">No tasks yet for this submission.</div>
+            ) : (
+              <div className="space-y-2">
+                {tasks.map((task) => (
+                  <div
+                    key={task.id}
+                    className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
+                      task.completed ? 'bg-green-50 border-green-100'
+                        : task.locked ? 'bg-gray-50 border-gray-200'
+                        : 'bg-white border-gray-100 hover:border-gray-200'
+                    }`}
+                  >
+                    <button className="shrink-0" onClick={() => handleToggleTask(task)} disabled={task.locked}>
+                      {task.completed ? (
+                        <CheckCircle size={20} className="text-green-600" />
+                      ) : (
+                        <Circle size={20} className={task.locked ? 'text-gray-300' : 'text-gray-400'} />
+                      )}
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-medium ${task.completed ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
+                        {task.title}
+                      </p>
+                      {task.subtitle && <p className="text-xs text-gray-500 mt-0.5">{task.subtitle}</p>}
+                    </div>
+                    {task.locked && (
+                      <span className="text-xs text-gray-500 flex items-center gap-1">
+                        <AlertTriangle size={12} /> Locked
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mt-8 mb-4">Documents</h2>
+            {documents.length === 0 ? (
+              <div className="text-sm text-gray-500">No documents uploaded yet.</div>
+            ) : (
+              <div className="space-y-2">
+                {documents.map((doc) => (
+                  <div key={doc.id} className="flex items-center gap-3 p-3 border border-gray-100 rounded-lg hover:border-gray-200 transition-all">
+                    <div className="h-10 w-10 rounded-lg bg-gray-100 flex items-center justify-center">
+                      <FileText size={20} className="text-gray-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{doc.file_name}</p>
+                      <p className="text-xs text-gray-500">{formatFileSize(doc.file_size)} - {doc.created_at ? formatDate(doc.created_at) : 'Recently'}</p>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                      doc.scan_status === 'clean' ? 'bg-green-100 text-green-700'
+                        : doc.scan_status === 'pending' ? 'bg-amber-100 text-amber-700'
+                        : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {doc.scan_status ?? 'pending'}
+                    </span>
+                    <button className="p-1.5 hover:bg-gray-100 rounded-lg">
+                      <Download size={16} className="text-gray-400" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={handleFileUpload}
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.png,.jpg,.jpeg"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="flex items-center justify-center gap-2 w-full mt-4 py-3 border-2 border-dashed border-gray-200 rounded-lg text-sm text-gray-500 hover:border-gray-300 hover:text-gray-700 transition-all disabled:opacity-60"
+            >
+              {isUploading ? (
+                <><Loader2 size={16} className="animate-spin" />Uploading...</>
+              ) : (
+                <><Upload size={16} />Upload Documents</>
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* ── TAB: AI PROPOSAL ───────────────────────────────────────── */}
+        {activeTab === 'proposal' && (
+          <div className="flex-1 flex min-h-0">
+            {/* Section sidebar */}
+            <div className="w-48 shrink-0 border-r border-gray-100 flex flex-col bg-gray-50">
+              <div className="p-3 border-b border-gray-100">
+                <button
+                  onClick={handleGenerateAll}
+                  disabled={isGeneratingAll || generatingSection !== null}
+                  className="flex items-center justify-center gap-1.5 w-full py-2 bg-purple-600 text-white rounded-lg text-xs font-medium hover:bg-purple-700 disabled:opacity-60 transition-all"
+                >
+                  {isGeneratingAll ? (
+                    <><Loader2 size={12} className="animate-spin" />Generating...</>
+                  ) : (
+                    <><Wand2 size={12} />Generate All</>
+                  )}
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                {PROPOSAL_SECTIONS.map((section) => {
+                  const data = proposalSections[section.key];
+                  const isActive = activeProposalSection === section.key;
+                  const isGenerating = generatingSection === section.key;
+                  return (
+                    <button
+                      key={section.key}
+                      onClick={() => setActiveProposalSection(section.key as SectionKey)}
+                      className={`w-full text-left px-3 py-2.5 rounded-lg text-xs font-medium transition-all flex items-center justify-between gap-1 ${
+                        isActive ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-600 hover:bg-white hover:text-gray-900'
+                      }`}
+                    >
+                      <span className="truncate">{section.label}</span>
+                      {isGenerating ? (
+                        <Loader2 size={10} className="animate-spin text-purple-600 shrink-0" />
+                      ) : data?.status === 'generated' ? (
+                        <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                      ) : data?.status === 'error' ? (
+                        <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+                      ) : (
+                        <span className="w-2 h-2 rounded-full bg-gray-300 shrink-0" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Section editor */}
+            <div className="flex-1 flex flex-col min-w-0">
+              {/* Section toolbar */}
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-white">
+                <h3 className="text-sm font-semibold text-gray-900">
+                  {PROPOSAL_SECTIONS.find(s => s.key === activeProposalSection)?.label}
+                </h3>
+                <div className="flex items-center gap-1.5">
+                  {activeSectionData?.status === 'generated' && (
+                    <button
+                      onClick={() => handleCopySection(activeProposalSection)}
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
+                      title="Copy to clipboard"
+                    >
+                      {copiedSection === activeProposalSection ? (
+                        <><CheckCheck size={12} className="text-green-600" />Copied</>
+                      ) : (
+                        <><Copy size={12} />Copy</>
+                      )}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleGenerateSection(activeProposalSection)}
+                    disabled={isGeneratingAll || generatingSection !== null}
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-lg transition-all disabled:opacity-60"
+                  >
+                    {generatingSection === activeProposalSection ? (
+                      <><Loader2 size={12} className="animate-spin" />Generating...</>
+                    ) : activeSectionData?.status === 'generated' ? (
+                      <><RefreshCw size={12} />Regenerate</>
+                    ) : (
+                      <><Wand2 size={12} />Generate</>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Editor area */}
+              <div className="flex-1 overflow-hidden">
+                {!activeSectionData && generatingSection !== activeProposalSection && (
+                  <div className="h-full flex flex-col items-center justify-center text-center px-8 text-gray-400">
+                    <Wand2 size={32} className="mb-3 text-gray-300" />
+                    <p className="text-sm font-medium text-gray-600 mb-1">No content yet</p>
+                    <p className="text-xs">Click "Generate" to create this section with AI,<br/>or "Generate All" to build the full proposal at once.</p>
+                  </div>
+                )}
+                {generatingSection === activeProposalSection && !activeSectionData && (
+                  <div className="h-full flex flex-col items-center justify-center text-center px-8 text-gray-400">
+                    <Loader2 size={32} className="mb-3 text-purple-400 animate-spin" />
+                    <p className="text-sm font-medium text-gray-600">Writing {PROPOSAL_SECTIONS.find(s => s.key === activeProposalSection)?.label}...</p>
+                    <p className="text-xs mt-1">This usually takes 10–30 seconds</p>
+                  </div>
+                )}
+                {activeSectionData?.status === 'error' && (
+                  <div className="p-4">
+                    <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                      Generation failed: {activeSectionData.error || 'Unknown error'}. Click Regenerate to try again.
+                    </div>
+                  </div>
+                )}
+                {(activeSectionData?.status === 'generated' || (activeSectionData && activeSectionData.status !== 'error')) && (
+                  <textarea
+                    value={activeSectionContent}
+                    onChange={(e) => setEditedContent(prev => ({ ...prev, [activeProposalSection]: e.target.value }))}
+                    className="w-full h-full p-4 text-sm text-gray-800 leading-relaxed resize-none focus:outline-none font-mono"
+                    placeholder="Generated content will appear here..."
+                    spellCheck
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
+      {/* ── RIGHT PANEL: AI INSIGHTS ───────────────────────────────────── */}
       <div className="w-80 flex flex-col bg-gray-50 shrink-0">
         <div className="p-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
@@ -621,11 +867,9 @@ const SubmissionWorkspace: React.FC = () => {
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Fit Score</span>
                       <span className={`text-lg font-bold ${
-                        complianceResult.fit_score >= 70
-                          ? 'text-green-600'
-                          : complianceResult.fit_score >= 40
-                            ? 'text-amber-600'
-                            : 'text-red-600'
+                        complianceResult.fit_score >= 70 ? 'text-green-600'
+                          : complianceResult.fit_score >= 40 ? 'text-amber-600'
+                          : 'text-red-600'
                       }`}>
                         {complianceResult.fit_score}/100
                       </span>
@@ -633,11 +877,9 @@ const SubmissionWorkspace: React.FC = () => {
                     <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all ${
-                          complianceResult.fit_score >= 70
-                            ? 'bg-green-500'
-                            : complianceResult.fit_score >= 40
-                              ? 'bg-amber-500'
-                              : 'bg-red-500'
+                          complianceResult.fit_score >= 70 ? 'bg-green-500'
+                            : complianceResult.fit_score >= 40 ? 'bg-amber-500'
+                            : 'bg-red-500'
                         }`}
                         style={{ width: `${complianceResult.fit_score}%` }}
                       />
@@ -715,22 +957,29 @@ const SubmissionWorkspace: React.FC = () => {
           </div>
         </div>
 
-        <div className="p-4 border-t border-gray-100">
+        <div className="p-4 border-t border-gray-100 space-y-2">
+          {activeTab === 'proposal' && (
+            <button
+              onClick={handleGenerateAll}
+              disabled={isGeneratingAll || generatingSection !== null}
+              className="flex items-center justify-center gap-2 w-full py-2.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-all disabled:opacity-60"
+            >
+              {isGeneratingAll ? (
+                <><Loader2 size={16} className="animate-spin" />Generating Proposal...</>
+              ) : (
+                <><Wand2 size={16} />Generate Full Proposal</>
+              )}
+            </button>
+          )}
           <button
             onClick={handleComplianceCheck}
             disabled={isCheckingCompliance}
             className="flex items-center justify-center gap-2 w-full py-2.5 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-all disabled:opacity-60"
           >
             {isCheckingCompliance ? (
-              <>
-                <Loader2 size={16} className="animate-spin" />
-                Checking...
-              </>
+              <><Loader2 size={16} className="animate-spin" />Checking...</>
             ) : (
-              <>
-                <Sparkles size={16} />
-                Run Compliance Check
-              </>
+              <><Sparkles size={16} />Run Compliance Check</>
             )}
           </button>
         </div>
@@ -740,4 +989,3 @@ const SubmissionWorkspace: React.FC = () => {
 };
 
 export default SubmissionWorkspace;
-

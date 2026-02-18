@@ -21,9 +21,10 @@ USER appuser
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-    CMD curl -f http://localhost:8001/health || exit 1
+    CMD curl -f http://localhost:${PORT:-8001}/health || exit 1
 
 EXPOSE 8001
 
 # Default: run the API server
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "2"]
+# Use shell form so $PORT env var is evaluated at runtime (required for Render/Railway)
+CMD uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8001} --workers 2

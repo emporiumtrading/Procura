@@ -169,6 +169,33 @@ describe('ProcuraAPI', () => {
       expect(result.status).toBe(201);
       expect(result.data).toMatchObject({ id: 'sub-456' });
     });
+
+    it('approveSubmission sends canonical step names via query params', async () => {
+      fetchMock.mockResolvedValueOnce(createMockResponse(200, { success: true }));
+
+      const result = await api.approveSubmission('sub-001', 'legal');
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, options] = fetchMock.mock.calls[0];
+      expect(url).toContain('/submissions/sub-001/approve?');
+      expect(url).toContain('step=legal');
+      expect(options.method).toBe('POST');
+      expect(result.status).toBe(200);
+    });
+
+    it('rejectSubmission URL-encodes rejection reason', async () => {
+      fetchMock.mockResolvedValueOnce(createMockResponse(200, { success: true }));
+
+      const reason = 'Missing budget approval + legal review';
+      const result = await api.rejectSubmission('sub-002', reason);
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, options] = fetchMock.mock.calls[0];
+      expect(url).toContain('/submissions/sub-002/reject?reason=');
+      expect(url).toContain(encodeURIComponent(reason));
+      expect(options.method).toBe('POST');
+      expect(result.status).toBe(200);
+    });
   });
 
   // -------------------------------------------------------

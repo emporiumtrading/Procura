@@ -14,6 +14,9 @@ import Settings from './pages/Settings';
 import DocumentLibrary from './pages/DocumentLibrary';
 import FollowUps from './pages/FollowUps';
 import Correspondence from './pages/Correspondence';
+import CompanyProfile from './pages/CompanyProfile';
+import Pipeline from './pages/Pipeline';
+import MarketIntel from './pages/MarketIntel';
 import NotFound from './pages/NotFound';
 
 // Protected Route wrapper with optional role-based access control
@@ -61,6 +64,9 @@ const AppLayout: React.FC = () => {
         <Route path="/documents" element={<DocumentLibrary />} />
         <Route path="/follow-ups" element={<FollowUps />} />
         <Route path="/correspondence" element={<Correspondence />} />
+        <Route path="/company-profile" element={<CompanyProfile />} />
+        <Route path="/pipeline" element={<Pipeline />} />
+        <Route path="/market-intel" element={<MarketIntel />} />
         <Route path="/access-denied" element={<AccessDenied />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

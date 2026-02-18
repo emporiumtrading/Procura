@@ -641,6 +641,112 @@ class ProcuraAPI {
     async markAllNotificationsRead() {
         return this.request<any>('POST', '/correspondence/notifications/mark-all-read');
     }
+
+    // ============================================
+    // Company Profile
+    // ============================================
+
+    async getCompanyProfile() {
+        return this.request<any>('GET', '/company-profile');
+    }
+
+    async saveCompanyProfile(profile: {
+        company_name: string;
+        cage_code?: string;
+        uei_number?: string;
+        duns_number?: string;
+        naics_codes: string[];
+        certifications: string[];
+        set_aside_types: string[];
+        size_standard?: string;
+        primary_location?: string;
+        capabilities: string;
+        keywords: string[];
+        past_performance: Array<{
+            title: string;
+            agency: string;
+            contract_number?: string;
+            value?: number;
+            period?: string;
+            description?: string;
+            naics_code?: string;
+        }>;
+        min_contract_value?: number;
+        max_contract_value?: number;
+        preferred_agencies: string[];
+        excluded_set_asides: string[];
+    }) {
+        return this.request<any>('PUT', '/company-profile', profile);
+    }
+
+    // ============================================
+    // AI Proposal Generation
+    // ============================================
+
+    async generateProposalSection(submissionId: string, section: string, provider?: string) {
+        return this.request<{ section: string; content: string; status: string }>(
+            'POST',
+            `/submissions/${submissionId}/generate-section`,
+            { section, provider }
+        );
+    }
+
+    async generateFullProposal(submissionId: string, sections?: string[], provider?: string) {
+        return this.request<{ sections: Record<string, { content: string; status: string }>; status: string }>(
+            'POST',
+            `/submissions/${submissionId}/generate-proposal`,
+            { sections, provider }
+        );
+    }
+
+    // ============================================
+    // Pipeline
+    // ============================================
+
+    async getPipelineView() {
+        return this.request<{
+            stages: Record<string, any[]>;
+            totals: Record<string, number>;
+            pipeline_config: { mode: string; fit_threshold: number; auto_threshold: number; max_auto_value: number };
+        }>('GET', '/submissions/pipeline');
+    }
+
+    async getPipelineConfig() {
+        return this.request<{ mode: string; fit_threshold: number; auto_threshold: number; max_auto_value: number }>(
+            'GET', '/admin/pipeline/config'
+        );
+    }
+
+    async updatePipelineConfig(config: {
+        mode?: 'manual' | 'supervised' | 'autonomous';
+        fit_threshold?: number;
+        auto_threshold?: number;
+        max_auto_value?: number;
+    }) {
+        return this.request<any>('PUT', '/admin/pipeline/config', config);
+    }
+
+    // ============================================
+    // Market Intelligence
+    // ============================================
+
+    async getMarketSummary(naics_codes: string) {
+        return this.request<any>('GET', `/market-intel/summary?naics_codes=${encodeURIComponent(naics_codes)}`);
+    }
+
+    async getNaicsAnalysis(naics_code: string, fiscal_year?: number, limit: number = 10) {
+        const query = new URLSearchParams({ limit: String(limit) });
+        if (fiscal_year) query.set('fiscal_year', String(fiscal_year));
+        return this.request<any>('GET', `/market-intel/naics/${naics_code}?${query.toString()}`);
+    }
+
+    async getIncumbents(naics_codes: string, limit: number = 15) {
+        return this.request<any>('GET', `/market-intel/incumbents?naics_codes=${encodeURIComponent(naics_codes)}&limit=${limit}`);
+    }
+
+    async getAgencyTrend(name: string, years: number = 3) {
+        return this.request<any>('GET', `/market-intel/agency?name=${encodeURIComponent(name)}&years=${years}`);
+    }
 }
 
 // Export singleton instance

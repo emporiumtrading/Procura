@@ -5,7 +5,7 @@ Comprehensive admin endpoints for full platform management
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, List
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, status
 from supabase import Client
 from pydantic import BaseModel, Field
 import structlog
@@ -512,6 +512,40 @@ async def update_workflow_config(
     }).execute()
     
     return {"updated": True}
+
+
+# ============================================
+# Pipeline Configuration
+# ============================================
+
+@router.get("/pipeline/config")
+async def get_pipeline_config(
+    user: dict = Depends(require_role(["admin"]))
+):
+    """Get pipeline autonomy configuration"""
+    from ..workflows.pipeline import get_pipeline_config
+    return get_pipeline_config()
+
+
+@router.put("/pipeline/config")
+async def update_pipeline_config(
+    config: dict,
+    user: dict = Depends(require_role(["admin"]))
+):
+    """
+    Update pipeline autonomy configuration.
+    Body: { mode: 'manual'|'supervised'|'autonomous', fit_threshold: int,
+            auto_threshold: int, max_auto_value: float }
+    """
+    from ..workflows.pipeline import save_pipeline_config
+    allowed_modes = {"manual", "supervised", "autonomous"}
+    if "mode" in config and config["mode"] not in allowed_modes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"mode must be one of {allowed_modes}"
+        )
+    save_pipeline_config(config)
+    return {"updated": True, "config": config}
 
 
 # ============================================

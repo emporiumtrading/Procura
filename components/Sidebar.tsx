@@ -1,12 +1,82 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, FileText, ShieldAlert, Lock, Briefcase, Gem, ChevronLeft, ChevronRight, LogOut, Settings, FolderOpen, CalendarClock, Mail } from 'lucide-react';
+import { LayoutDashboard, FileText, ShieldAlert, Lock, Briefcase, Gem, ChevronLeft, ChevronRight, LogOut, Settings, FolderOpen, CalendarClock, Mail, Building2, Bell, ExternalLink, CheckCheck, GitBranch, TrendingUp } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
+import api from '../lib/api';
+
+interface Notification {
+  id: string;
+  title: string;
+  body: string;
+  type: string;
+  priority: string;
+  read: boolean;
+  action_url?: string;
+  created_at: string;
+}
+
+const POLL_INTERVAL_MS = 60_000; // check every 60 seconds
 
 const Sidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+
+  // ── Notifications state ───────────────────────────────────────────────────
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifDropdown, setShowNotifDropdown] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const res = await api.listNotifications(false, 1);
+      if (res.data) {
+        const items: Notification[] = res.data.notifications || res.data.data || res.data || [];
+        setNotifications(items.slice(0, 8));
+        setUnreadCount(items.filter((n: Notification) => !n.read).length);
+      }
+    } catch {
+      // silent — notifications are non-critical
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [user, fetchNotifications]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setShowNotifDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const handleMarkAllRead = async () => {
+    await api.markAllNotificationsRead();
+    setNotifications(ns => ns.map(n => ({ ...n, read: true })));
+    setUnreadCount(0);
+  };
+
+  const handleNotifClick = (n: Notification) => {
+    if (!n.read) {
+      api.markNotificationRead(n.id);
+      setNotifications(ns => ns.map(x => x.id === n.id ? { ...x, read: true } : x));
+      setUnreadCount(c => Math.max(0, c - 1));
+    }
+    if (n.action_url) navigate(n.action_url);
+    setShowNotifDropdown(false);
+  };
+
+  const priorityColor = (p: string) =>
+    p === 'urgent' ? 'bg-red-500' : p === 'high' ? 'bg-amber-500' : 'bg-blue-500';
 
   const displayName = (user as any)?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
   const userRole = (user as any)?.user_metadata?.role || 'viewer';
@@ -55,6 +125,14 @@ const Sidebar = () => {
           <Briefcase size={20} className="shrink-0" />
           <span className={`text-sm font-medium whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 hidden' : 'w-auto opacity-100 block'}`}>Workspace</span>
         </NavLink>
+        <NavLink to="/pipeline" className={navItemClass} title="Pipeline — track opportunities by stage">
+          <GitBranch size={20} className="shrink-0" />
+          <span className={`text-sm font-medium whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 hidden' : 'w-auto opacity-100 block'}`}>Pipeline</span>
+        </NavLink>
+        <NavLink to="/market-intel" className={navItemClass} title="Federal market intelligence from USAspending.gov">
+          <TrendingUp size={20} className="shrink-0" />
+          <span className={`text-sm font-medium whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 hidden' : 'w-auto opacity-100 block'}`}>Market Intel</span>
+        </NavLink>
         <NavLink to="/documents" className={navItemClass} title="Reusable document library">
           <FolderOpen size={20} className="shrink-0" />
           <span className={`text-sm font-medium whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 hidden' : 'w-auto opacity-100 block'}`}>Documents</span>
@@ -75,6 +153,10 @@ const Sidebar = () => {
         {!isCollapsed && <div className="my-2 border-t border-gray-100 dark:border-neutral-800 mx-3"></div>}
         {!isCollapsed && <p className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest animate-in fade-in duration-300">System</p>}
 
+        <NavLink to="/company-profile" className={navItemClass} title="Your company profile for AI scoring">
+          <Building2 size={20} className="shrink-0" />
+          <span className={`text-sm font-medium whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 hidden' : 'w-auto opacity-100 block'}`}>Company Profile</span>
+        </NavLink>
         <NavLink to="/admin" className={navItemClass} title="System administration and settings">
           <ShieldAlert size={20} className="shrink-0" />
           <span className={`text-sm font-medium whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 hidden' : 'w-auto opacity-100 block'}`}>Admin</span>
@@ -87,6 +169,69 @@ const Sidebar = () => {
           <Settings size={20} className="shrink-0" />
           <span className={`text-sm font-medium whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 hidden' : 'w-auto opacity-100 block'}`}>Settings</span>
         </NavLink>
+      </div>
+
+      {/* Notification Bell */}
+      <div ref={notifRef} className="relative px-3 pb-1">
+        <button
+          onClick={() => setShowNotifDropdown(o => !o)}
+          className={`relative flex items-center gap-2 w-full px-3 py-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors ${isCollapsed ? 'justify-center' : ''}`}
+          title="Notifications"
+        >
+          <Bell size={20} className="shrink-0" />
+          {unreadCount > 0 && (
+            <span className="absolute top-1.5 left-7 h-4 w-4 flex items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold leading-none">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
+          {!isCollapsed && (
+            <span className="text-sm font-medium">
+              Notifications
+              {unreadCount > 0 && <span className="ml-2 bg-red-100 text-red-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{unreadCount}</span>}
+            </span>
+          )}
+        </button>
+
+        {/* Notification Dropdown */}
+        {showNotifDropdown && (
+          <div className={`absolute bottom-12 ${isCollapsed ? 'left-16' : 'left-3 right-3'} z-50 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden min-w-[300px]`}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <span className="text-sm font-semibold text-gray-900">Notifications</span>
+              {unreadCount > 0 && (
+                <button onClick={handleMarkAllRead} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-900 transition-colors">
+                  <CheckCheck size={12} /> Mark all read
+                </button>
+              )}
+            </div>
+            <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
+              {notifications.length === 0 ? (
+                <div className="px-4 py-6 text-center text-xs text-gray-400">
+                  No notifications yet.<br />High-fit opportunities will appear here.
+                </div>
+              ) : (
+                notifications.map(n => (
+                  <button
+                    key={n.id}
+                    onClick={() => handleNotifClick(n)}
+                    className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${!n.read ? 'bg-blue-50/50' : ''}`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <span className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${!n.read ? priorityColor(n.priority) : 'bg-gray-200'}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-xs font-medium truncate ${!n.read ? 'text-gray-900' : 'text-gray-600'}`}>{n.title}</p>
+                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{n.body}</p>
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          {new Date(n.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                      {n.action_url && <ExternalLink size={10} className="shrink-0 mt-1.5 text-gray-300" />}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Footer / User Profile */}

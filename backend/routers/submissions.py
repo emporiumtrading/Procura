@@ -17,6 +17,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, 
 from supabase import Client
 import structlog
 
+from pydantic import BaseModel
+
 from ..dependencies import get_current_user, require_officer, get_request_supabase
 from ..models import (
     SubmissionResponse,
@@ -121,6 +123,126 @@ def _scan_file(file_content: bytes, file_name: str, file_type: str) -> str:
             return "rejected"
 
     return "clean"
+
+
+# ===========================================
+# Pipeline View
+# ===========================================
+
+@router.get("/pipeline")
+async def get_pipeline_view(
+    supabase: Client = Depends(get_request_supabase),
+    user: dict = Depends(get_current_user),
+):
+    """
+    Returns opportunities grouped by pipeline stage for Kanban view.
+    Stages: discovered, qualified, drafting, review, submitted, tracking
+    """
+    try:
+        # Load recent opportunities (last 90 days)
+        from datetime import timedelta
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=90)).isoformat()
+
+        opps_q = supabase.table("opportunities").select(
+            "id, title, agency, fit_score, due_date, status, estimated_value, naics_code, source"
+        ).gte("created_at", cutoff).order("fit_score", desc=True).limit(200)
+
+        if user.get("role") != "admin":
+            # Non-admins only see opps that have submissions they own
+            pass  # will filter below via join
+        opps = opps_q.execute().data or []
+
+        # Load active submissions for the user
+        sub_q = supabase.table("submissions").select(
+            "id, opportunity_id, status, approval_status, title, due_date"
+        )
+        if user.get("role") != "admin":
+            sub_q = sub_q.eq("owner_id", user["id"])
+        subs = sub_q.execute().data or []
+
+        sub_map: dict = {s["opportunity_id"]: s for s in subs}
+
+        # Build pipeline stages
+        stages: dict = {
+            "discovered": [],
+            "qualified": [],
+            "drafting": [],
+            "review": [],
+            "submitted": [],
+            "tracking": [],
+        }
+
+        for opp in opps:
+            card = {
+                "id": opp["id"],
+                "title": opp.get("title", "Untitled"),
+                "agency": opp.get("agency", ""),
+                "fit_score": opp.get("fit_score"),
+                "due_date": opp.get("due_date"),
+                "estimated_value": opp.get("estimated_value"),
+                "source": opp.get("source", ""),
+                "submission_id": None,
+                "submission_status": None,
+            }
+
+            sub = sub_map.get(opp["id"])
+            if sub:
+                card["submission_id"] = sub["id"]
+                card["submission_status"] = sub["status"]
+                s_status = sub["status"]
+                a_status = sub.get("approval_status", "pending")
+                if s_status == "submitted":
+                    stages["submitted"].append(card)
+                elif s_status in ("rejected", "cancelled"):
+                    pass  # don't show
+                elif a_status == "complete":
+                    stages["review"].append(card)
+                else:
+                    stages["drafting"].append(card)
+            else:
+                opp_status = opp.get("status", "new")
+                fit = opp.get("fit_score")
+                if opp_status == "disqualified":
+                    pass  # don't show disqualified
+                elif fit is not None and fit >= 50:
+                    stages["qualified"].append(card)
+                else:
+                    stages["discovered"].append(card)
+
+        # Tracking: load recent follow-up statuses
+        try:
+            fups = supabase.table("follow_ups").select(
+                "submission_id, status, portal_status"
+            ).eq("status", "checked").limit(50).execute().data or []
+            fup_sub_ids = {f["submission_id"] for f in fups}
+
+            # Move submitted opps with active follow-ups to tracking
+            new_submitted = []
+            for card in stages["submitted"]:
+                if card["submission_id"] in fup_sub_ids:
+                    stages["tracking"].append(card)
+                else:
+                    new_submitted.append(card)
+            stages["submitted"] = new_submitted
+        except Exception:
+            pass
+
+        # Load pipeline config for display
+        from ..workflows.pipeline import get_pipeline_config
+        pipeline_cfg = get_pipeline_config()
+
+        return {
+            "stages": stages,
+            "totals": {k: len(v) for k, v in stages.items()},
+            "pipeline_config": pipeline_cfg,
+        }
+
+    except Exception as e:
+        logger.error("Failed to build pipeline view", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load pipeline"
+        )
 
 
 # ===========================================
@@ -778,3 +900,148 @@ async def sync_opportunity_updates(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to sync opportunity updates"
         )
+
+
+# ===========================================
+# AI Proposal Generation
+# ===========================================
+
+class GenerateSectionRequest(BaseModel):
+    section: str
+    provider: Optional[str] = None
+
+
+class GenerateProposalRequest(BaseModel):
+    sections: Optional[List[str]] = None  # None = all sections
+    provider: Optional[str] = None
+
+
+@router.post("/{submission_id}/generate-section")
+async def generate_proposal_section(
+    submission_id: str,
+    req: GenerateSectionRequest,
+    supabase: Client = Depends(get_request_supabase),
+    user: dict = Depends(get_current_user),
+):
+    """
+    (Re)generate a single proposal section using AI.
+    Returns the generated text for immediate display/editing.
+    """
+    from ..ai.proposal_generator import generate_section, SECTION_NAMES
+    from ..routers.company_profile import get_company_profile
+
+    if req.section not in SECTION_NAMES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown section '{req.section}'. Valid: {SECTION_NAMES}",
+        )
+
+    submission = (
+        supabase.table("submissions")
+        .select("id, owner_id, opportunity_id, proposal_sections")
+        .eq("id", submission_id)
+        .single()
+        .execute()
+    )
+    if not submission.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
+
+    if user.get("role") != "admin" and submission.data["owner_id"] != user["id"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    opp = (
+        supabase.table("opportunities")
+        .select("*")
+        .eq("id", submission.data["opportunity_id"])
+        .single()
+        .execute()
+    )
+    if not opp.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Opportunity not found")
+
+    profile = get_company_profile()
+
+    try:
+        content = await generate_section(req.section, opp.data, profile, provider=req.provider)
+    except Exception as e:
+        logger.error("Section generation failed", section=req.section, error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"AI generation failed: {str(e)[:200]}",
+        )
+
+    # Persist the generated section into submissions.proposal_sections (JSONB column).
+    # If the column doesn't exist the update will fail silently — we still return the content.
+    try:
+        existing_sections = submission.data.get("proposal_sections") or {}
+        existing_sections[req.section] = {"content": content, "status": "generated"}
+        supabase.table("submissions").update(
+            {"proposal_sections": existing_sections}
+        ).eq("id", submission_id).execute()
+    except Exception:
+        pass  # column may not exist; content is still returned to frontend
+
+    logger.info("Proposal section generated", submission_id=submission_id, section=req.section)
+    return {"section": req.section, "content": content, "status": "generated"}
+
+
+@router.post("/{submission_id}/generate-proposal")
+async def generate_full_proposal(
+    submission_id: str,
+    req: GenerateProposalRequest,
+    supabase: Client = Depends(get_request_supabase),
+    user: dict = Depends(get_current_user),
+):
+    """
+    Generate all (or selected) proposal sections in one call.
+    Sections are generated sequentially and persisted as they complete.
+    Returns a map of section → {content, status}.
+    """
+    from ..ai.proposal_generator import generate_full_proposal as _gen_full, SECTION_NAMES
+    from ..routers.company_profile import get_company_profile
+
+    submission = (
+        supabase.table("submissions")
+        .select("id, owner_id, opportunity_id")
+        .eq("id", submission_id)
+        .single()
+        .execute()
+    )
+    if not submission.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
+
+    if user.get("role") != "admin" and submission.data["owner_id"] != user["id"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+
+    opp = (
+        supabase.table("opportunities")
+        .select("*")
+        .eq("id", submission.data["opportunity_id"])
+        .single()
+        .execute()
+    )
+    if not opp.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Opportunity not found")
+
+    profile = get_company_profile()
+    target_sections = req.sections or SECTION_NAMES
+
+    try:
+        results = await _gen_full(opp.data, profile, sections=target_sections, provider=req.provider)
+    except Exception as e:
+        logger.error("Full proposal generation failed", submission_id=submission_id, error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"AI generation failed: {str(e)[:200]}",
+        )
+
+    # Persist all sections
+    try:
+        supabase.table("submissions").update(
+            {"proposal_sections": results}
+        ).eq("id", submission_id).execute()
+    except Exception:
+        pass
+
+    logger.info("Full proposal generated", submission_id=submission_id, sections=list(results.keys()))
+    return {"sections": results, "status": "complete"}

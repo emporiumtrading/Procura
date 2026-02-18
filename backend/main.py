@@ -16,17 +16,48 @@ from .config import settings as app_settings
 from .routers import opportunities, submissions, connectors, audit, admin, feeds
 from .routers import settings as settings_router
 from .routers import documents, follow_ups, correspondence
-# from .tasks.celery_app import celery_app  # Uncomment when Celery is configured
+from .routers import company_profile
+from .routers import market_intel
 
 logger = structlog.get_logger()
 
-# Rate limiter — Redis-backed in production, in-memory for dev
-_limiter_storage = app_settings.REDIS_URL if app_settings.is_production else "memory://"
+# Celery is activated only when a remote Redis URL is configured.
+# This keeps the app startable on Render free-tier without Redis.
+_redis_url = (app_settings.REDIS_URL or "").strip()
+_celery_enabled = _redis_url.startswith("rediss://") or (
+    _redis_url.startswith("redis://")
+    and "localhost" not in _redis_url
+    and "127.0.0.1" not in _redis_url
+)
+if _celery_enabled:
+    try:
+        from .tasks.celery_app import celery_app as _celery_app  # noqa: F401
+        logger.info("Celery activated", broker=_redis_url[:40])
+    except Exception as _ce:
+        logger.warning("Celery import failed; scheduled tasks disabled", error=str(_ce))
+
+
+def _get_limiter_storage() -> str:
+    """
+    Use Redis for rate limiting when a non-localhost Redis URL is configured,
+    otherwise fall back to in-memory. This prevents startup failures on
+    deployments (e.g. Render free tier) where Redis is not yet set up.
+    """
+    url = (app_settings.REDIS_URL or "").strip()
+    is_remote = (
+        url.startswith("redis://")
+        and "localhost" not in url
+        and "127.0.0.1" not in url
+    ) or url.startswith("rediss://")
+    if is_remote:
+        return url
+    return "memory://"
+
 
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=[f"{app_settings.RATE_LIMIT_PER_MINUTE}/minute"],
-    storage_uri=_limiter_storage,
+    storage_uri=_get_limiter_storage(),
 )
 
 
@@ -218,6 +249,18 @@ app.include_router(
     tags=["Correspondence"]
 )
 
+app.include_router(
+    company_profile.router,
+    prefix="/api/company-profile",
+    tags=["Company Profile"]
+)
+
+app.include_router(
+    market_intel.router,
+    prefix="/api/market-intel",
+    tags=["Market Intelligence"]
+)
+
 
 # ===========================================
 # ROOT ENDPOINTS
@@ -254,15 +297,17 @@ async def health_check():
         health_status["checks"]["database"] = f"error: {str(e)[:100]}"
         health_status["status"] = "degraded"
 
-    # Check Redis (only if configured for Celery)
-    if app_settings.REDIS_URL and not app_settings.REDIS_URL.startswith("redis://localhost"):
+    # Check Redis whenever a redis:// URL is configured.
+    redis_url = (app_settings.REDIS_URL or "").strip()
+    if redis_url and (redis_url.startswith("redis://") or redis_url.startswith("rediss://")):
         try:
             import redis
-            r = redis.from_url(app_settings.REDIS_URL, socket_timeout=2)
+            r = redis.from_url(redis_url, socket_timeout=2)
             r.ping()
             health_status["checks"]["redis"] = "connected"
         except Exception as e:
-            health_status["checks"]["redis"] = "not configured"
+            health_status["checks"]["redis"] = f"error: {str(e)[:100]}"
+            health_status["status"] = "degraded"
     else:
         health_status["checks"]["redis"] = "not configured (optional)"
 

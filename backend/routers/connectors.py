@@ -3,9 +3,11 @@ Connectors Router
 Portal connector management with credential vault
 """
 from typing import Optional
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from supabase import Client
 import structlog
+import httpx
 
 from ..dependencies import require_admin, get_request_supabase
 from ..models import (
@@ -23,6 +25,129 @@ from ..security.vault import encrypt_credentials, decrypt_credentials
 logger = structlog.get_logger()
 
 router = APIRouter()
+
+
+def _is_placeholder(value: Optional[str]) -> bool:
+    if not value:
+        return True
+    normalized = value.strip()
+    if not normalized:
+        return True
+    upper = normalized.upper()
+    return upper == "PLACEHOLDER" or "PLACEHOLDER" in upper or normalized.startswith("your-")
+
+
+def _extract_secret(credentials: dict, *keys: str) -> Optional[str]:
+    for key in keys:
+        value = credentials.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+async def _test_sam_connection(api_key: str) -> tuple[bool, str]:
+    params = {
+        "limit": 1,
+        "status": "active",
+        "postedFrom": (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%m/%d/%Y"),
+        "postedTo": datetime.now(timezone.utc).strftime("%m/%d/%Y"),
+    }
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        response = await client.get(
+            "https://api.sam.gov/opportunities/v2/search",
+            params=params,
+            headers={"X-Api-Key": api_key},
+        )
+    if response.status_code != 200:
+        return False, f"SAM.gov test failed with status {response.status_code}"
+    payload = response.json()
+    count = len(payload.get("opportunitiesData", []) or [])
+    return True, f"SAM.gov reachable ({count} records returned)"
+
+
+async def _test_govcon_connection(api_key: str) -> tuple[bool, str]:
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        response = await client.get(
+            "https://govconapi.com/api/v1/opportunities/search",
+            params={"limit": 1, "offset": 0},
+            headers={"Authorization": f"Bearer {api_key}"},
+        )
+    if response.status_code != 200:
+        return False, f"GovCon API test failed with status {response.status_code}"
+    payload = response.json()
+    count = len(payload.get("data", []) or [])
+    return True, f"GovCon API reachable ({count} records returned)"
+
+
+async def _test_usaspending_connection() -> tuple[bool, str]:
+    payload = {
+        "filters": {
+            "time_period": [
+                {
+                    "start_date": (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d"),
+                    "end_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                }
+            ],
+            "award_type_codes": ["A", "B", "C", "D"],
+        },
+        "limit": 1,
+        "page": 1,
+    }
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        response = await client.post(
+            "https://api.usaspending.gov/api/v2/search/spending_by_award",
+            json=payload,
+        )
+    if response.status_code != 200:
+        return False, f"USAspending test failed with status {response.status_code}"
+    payload = response.json()
+    count = len(payload.get("results", []) or [])
+    return True, f"USAspending reachable ({count} records returned)"
+
+
+async def _test_generic_portal(portal_url: str) -> tuple[bool, str]:
+    async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+        response = await client.get(portal_url)
+    if response.status_code >= 400:
+        return False, f"Portal URL test failed with status {response.status_code}"
+    return True, f"Portal reachable (status {response.status_code})"
+
+
+async def _run_connector_test(connector: dict, credentials: dict) -> tuple[bool, int, str]:
+    name = (connector.get("name") or "").strip().lower()
+
+    try:
+        if name in {"sam", "sam_gov", "sam.gov"}:
+            api_key = _extract_secret(credentials, "api_key", "sam_gov_api_key", "x_api_key")
+            if _is_placeholder(api_key):
+                return False, status.HTTP_400_BAD_REQUEST, "SAM.gov API key is missing or invalid."
+            ok, message = await _test_sam_connection(api_key)
+            return ok, status.HTTP_502_BAD_GATEWAY if not ok else status.HTTP_200_OK, message
+
+        if name in {"govcon", "govcon_api", "govconapi"}:
+            api_key = _extract_secret(credentials, "api_key", "govcon_api_key", "token")
+            if _is_placeholder(api_key):
+                return False, status.HTTP_400_BAD_REQUEST, "GovCon API key is missing or invalid."
+            ok, message = await _test_govcon_connection(api_key)
+            return ok, status.HTTP_502_BAD_GATEWAY if not ok else status.HTTP_200_OK, message
+
+        if name in {"usaspending", "usaspending_api"}:
+            ok, message = await _test_usaspending_connection()
+            return ok, status.HTTP_502_BAD_GATEWAY if not ok else status.HTTP_200_OK, message
+
+        portal_url = connector.get("portal_url")
+        if isinstance(portal_url, str) and portal_url.startswith(("http://", "https://")):
+            ok, message = await _test_generic_portal(portal_url)
+            return ok, status.HTTP_502_BAD_GATEWAY if not ok else status.HTTP_200_OK, message
+
+        return False, status.HTTP_400_BAD_REQUEST, (
+            "No test strategy available for this connector. "
+            "Set a known connector name (sam, govcon, usaspending) or a valid portal_url."
+        )
+    except httpx.TimeoutException:
+        return False, status.HTTP_504_GATEWAY_TIMEOUT, "Connector test timed out."
+    except httpx.HTTPError as exc:
+        return False, status.HTTP_502_BAD_GATEWAY, f"Connector test failed: {str(exc)[:200]}"
 
 
 @router.get("", response_model=ConnectorListResponse)
@@ -284,13 +409,15 @@ async def test_connector(
         
         # Decrypt credentials
         credentials = decrypt_credentials(connector.data["encrypted_credentials"])
-        
-        # TODO: Actually test the connection based on connector type
-        # This is a placeholder - real implementation would call the API
-        
-        logger.info("Connector test successful", id=connector_id)
-        
-        return BaseResponse(success=True, message="Connection test successful")
+
+        ok, status_code, message = await _run_connector_test(connector.data, credentials)
+        if not ok:
+            logger.warning("Connector test failed", id=connector_id, reason=message)
+            raise HTTPException(status_code=status_code, detail=message)
+
+        logger.info("Connector test successful", id=connector_id, message=message)
+
+        return BaseResponse(success=True, message=message)
         
     except HTTPException:
         raise

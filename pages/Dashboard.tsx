@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, ChevronDown, ChevronRight, Copy, ExternalLink, FileText, Loader2, Newspaper, RotateCw, Search, Sparkles, X, XCircle } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight, Copy, ExternalLink, FileText, Loader2, Newspaper, RotateCw, Search, Sparkles, X, XCircle, Zap } from 'lucide-react';
 import { api } from '../lib/api';
 import NewsFeed from '../components/NewsFeed';
 import {
@@ -36,6 +36,8 @@ const COLUMN_LABELS: Record<ColumnKey, string> = {
 };
 
 const LOCAL_STORAGE_COLUMNS_KEY = 'procura.dashboard.columns.v1';
+const LOCAL_STORAGE_LAYOUT_KEY = 'procura.dashboard.layout_pref.v1';
+const LOCAL_STORAGE_DENSITY_KEY = 'procura.dashboard.density.v1';
 
 const DEFAULT_COLUMNS: Record<ColumnKey, boolean> = {
   source: true,
@@ -47,35 +49,63 @@ const DEFAULT_COLUMNS: Record<ColumnKey, boolean> = {
   value: true,
 };
 
-const useMediaQuery = (query: string) => {
-  const [matches, setMatches] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    return window.matchMedia(query).matches;
-  });
+type DashboardLayoutMode = 'split' | 'stacked';
+type LayoutPreference = 'auto' | DashboardLayoutMode;
+type RowDensity = 'normal' | 'compact';
+
+const useDashboardLayoutMode = (ref: React.RefObject<HTMLElement>) => {
+  const [mode, setMode] = useState<DashboardLayoutMode>('stacked');
 
   useEffect(() => {
-    const mql = window.matchMedia(query);
-    const onChange = (e: MediaQueryListEvent) => setMatches(e.matches);
-    setMatches(mql.matches);
+    const node = ref.current;
+    if (!node) return;
 
-    if (typeof mql.addEventListener === 'function') {
-      mql.addEventListener('change', onChange);
-      return () => mql.removeEventListener('change', onChange);
+    const updateMode = (width: number) => {
+      // Width here is the dashboard content area (excluding sidebar).
+      // Some browsers can briefly report 0 during initial layout; in that case
+      // fall back to viewport width so desktop users don't get stuck in stacked mode.
+      const fallbackWidth =
+        typeof window !== 'undefined' ? Math.max(window.innerWidth, document.documentElement.clientWidth) : 0;
+      const effectiveWidth = width > 0 ? width : fallbackWidth;
+      setMode(effectiveWidth >= 960 ? 'split' : 'stacked');
+    };
+
+    updateMode(node.clientWidth);
+
+    if (typeof ResizeObserver === 'undefined') {
+      const onResize = () => updateMode(node.clientWidth);
+      window.addEventListener('resize', onResize);
+      return () => window.removeEventListener('resize', onResize);
     }
 
-    // Safari fallback
-    // eslint-disable-next-line deprecation/deprecation
-    mql.addListener(onChange);
-    // eslint-disable-next-line deprecation/deprecation
-    return () => mql.removeListener(onChange);
-  }, [query]);
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect?.width ?? node.clientWidth;
+      updateMode(width);
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [ref]);
 
-  return matches;
+  return mode;
 };
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const isDesktop = useMediaQuery('(min-width: 1024px)');
+  const layoutRef = useRef<HTMLDivElement | null>(null);
+  const layoutMode = useDashboardLayoutMode(layoutRef);
+  const [layoutPref, setLayoutPref] = useState<LayoutPreference>(() => {
+    if (typeof localStorage === 'undefined') return 'auto';
+    const raw = localStorage.getItem(LOCAL_STORAGE_LAYOUT_KEY);
+    if (raw === 'auto' || raw === 'split' || raw === 'stacked') return raw;
+    return 'auto';
+  });
+  const [density, setDensity] = useState<RowDensity>(() => {
+    if (typeof localStorage === 'undefined') return 'compact';
+    const raw = localStorage.getItem(LOCAL_STORAGE_DENSITY_KEY);
+    return raw === 'normal' || raw === 'compact' ? raw as RowDensity : 'compact';
+  });
+  const effectiveLayout: DashboardLayoutMode = layoutPref === 'auto' ? layoutMode : layoutPref;
+  const isDesktop = effectiveLayout === 'split';
 
   const [opportunities, setOpportunities] = useState<OpportunityRecord[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -111,6 +141,7 @@ const Dashboard: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isQualifying, setIsQualifying] = useState(false);
   const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false);
+  const [isQuickPursuing, setIsQuickPursuing] = useState(false);
   const [isBulkRunning, setIsBulkRunning] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
 
@@ -295,6 +326,30 @@ const Dashboard: React.FC = () => {
     }
   }, [isDesktop, filteredOpportunities]);
 
+  // Prevent an auto-selected desktop record from opening the mobile drawer
+  // when the layout switches from split -> stacked.
+  useEffect(() => {
+    if (!isDesktop && selectedId) {
+      setSelectedId(null);
+    }
+  }, [isDesktop]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_LAYOUT_KEY, layoutPref);
+    } catch {
+      // ignore storage issues
+    }
+  }, [layoutPref]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_DENSITY_KEY, density);
+    } catch {
+      // ignore storage issues
+    }
+  }, [density]);
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !isDesktop) {
@@ -393,6 +448,48 @@ const Dashboard: React.FC = () => {
 
     setNotice({ kind: 'success', message: 'Workspace created.' });
     setIsCreatingWorkspace(false);
+    navigate(`/workspace/${submissionId}`);
+  };
+
+  const handleQuickPursue = async (opp: OpportunityRecord) => {
+    if (isQuickPursuing) return;
+    setIsQuickPursuing(true);
+    setNotice({ kind: 'info', message: 'Creating workspace and generating proposal…' });
+
+    const links = extractLinks(opp);
+    const portal = links.samUrl ? 'SAM.gov' : (opp.source ?? 'unknown');
+    const notesParts = [
+      `source=${opp.source}`,
+      `external_ref=${opp.external_ref}`,
+      links.samUrl ? `sam_url=${links.samUrl}` : null,
+    ].filter(Boolean);
+
+    const subRes = await api.createSubmission({
+      opportunity_id: opp.id,
+      portal,
+      due_date: opp.due_date,
+      title: opp.title,
+      notes: notesParts.join('\\n'),
+    });
+
+    if (subRes.error || !subRes.data) {
+      setNotice({ kind: 'error', message: subRes.error || 'Failed to create workspace.' });
+      setIsQuickPursuing(false);
+      return;
+    }
+
+    const submissionId = (subRes.data as any)?.id as string | undefined;
+    if (!submissionId) {
+      setNotice({ kind: 'error', message: 'Workspace created but no submission id returned.' });
+      setIsQuickPursuing(false);
+      return;
+    }
+
+    // Fire proposal generation in background — don't await so we navigate immediately
+    api.generateFullProposal(submissionId).catch(() => {/* silent — workspace shows generation state */});
+
+    setNotice({ kind: 'success', message: 'Workspace created! Proposal generation started.' });
+    setIsQuickPursuing(false);
     navigate(`/workspace/${submissionId}`);
   };
 
@@ -502,7 +599,7 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 bg-white">
+    <div ref={layoutRef} className="flex-1 flex flex-col min-h-0 bg-white">
       <div className="flex-1 flex min-h-0">
         {isDesktop ? (
           /* Desktop: Side-by-side grid layout */
@@ -538,6 +635,44 @@ const Dashboard: React.FC = () => {
                       {isLoading ? <Loader2 size={16} className="animate-spin" /> : <RotateCw size={16} />}
                       Refresh List
                     </button>
+
+                    <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-700 px-2 py-1">
+                      <span className="hidden xl:inline text-gray-500">Layout</span>
+                      {(['auto', 'split', 'stacked'] as LayoutPreference[]).map((opt) => (
+                        <button
+                          key={opt}
+                          onClick={() => setLayoutPref(opt)}
+                          className={`px-2 py-1 rounded-md transition-colors ${
+                            layoutPref === opt ? 'bg-gray-900 text-white' : 'hover:bg-gray-100'
+                          }`}
+                          title={
+                            opt === 'auto'
+                              ? 'Auto: switch based on width'
+                              : opt === 'split'
+                                ? 'Force split (list + detail)'
+                                : 'Force stacked (list only)'
+                          }
+                        >
+                          {opt === 'auto' ? 'Auto' : opt === 'split' ? 'Split' : 'Stacked'}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-700 px-2 py-1">
+                      <span className="hidden xl:inline text-gray-500">Density</span>
+                      {(['compact', 'normal'] as RowDensity[]).map((opt) => (
+                        <button
+                          key={opt}
+                          onClick={() => setDensity(opt)}
+                          className={`px-2 py-1 rounded-md transition-colors ${
+                            density === opt ? 'bg-gray-900 text-white' : 'hover:bg-gray-100'
+                          }`}
+                          title={opt === 'compact' ? 'Tighter rows, more columns visible' : 'Comfortable row spacing'}
+                        >
+                          {opt === 'compact' ? 'Compact' : 'Comfort'}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
@@ -559,7 +694,7 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex flex-wrap gap-3 items-center">
-                <div className="relative flex-1 min-w-[240px]">
+                <div className="relative flex-1 min-w-[18rem]">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                   <input
                     type="text"
@@ -647,35 +782,35 @@ const Dashboard: React.FC = () => {
                   value={naicsPrefix}
                   onChange={(e) => setNaicsPrefix(e.target.value)}
                   placeholder="NAICS prefix..."
-                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm w-[140px]"
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm min-w-[8.5rem] flex-1 sm:flex-none sm:w-[8.5rem]"
                 />
 
                 <input
                   value={pscPrefix}
                   onChange={(e) => setPscPrefix(e.target.value)}
                   placeholder="PSC prefix..."
-                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm w-[120px]"
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm min-w-[7.5rem] flex-1 sm:flex-none sm:w-[7.5rem]"
                 />
 
                 <input
                   value={companyFilter}
                   onChange={(e) => setCompanyFilter(e.target.value)}
                   placeholder="Company..."
-                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm w-[180px]"
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm min-w-[10rem] flex-1 sm:flex-none sm:w-[10rem]"
                 />
 
                 <input
                   value={valueMin}
                   onChange={(e) => setValueMin(e.target.value)}
                   placeholder="Min $..."
-                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm w-[120px]"
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm min-w-[7.5rem] flex-1 sm:flex-none sm:w-[7.5rem]"
                 />
 
                 <input
                   value={valueMax}
                   onChange={(e) => setValueMax(e.target.value)}
                   placeholder="Max $..."
-                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm w-[120px]"
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm min-w-[7.5rem] flex-1 sm:flex-none sm:w-[7.5rem]"
                 />
 
                 <label className="flex items-center gap-2 text-sm text-gray-700 px-2">
@@ -760,115 +895,121 @@ const Dashboard: React.FC = () => {
                     )}
                   </div>
                 ) : (
-                  <table className="w-full text-left table-fixed border-collapse">
-                    <thead className="bg-white sticky top-0 z-10 border-b border-gray-100">
-                      <tr>
-                        <th className="px-3 py-3 w-10">
-                          <input
-                            type="checkbox"
-                            checked={filteredOpportunities.length > 0 && selectedIds.size === filteredOpportunities.length}
-                            onChange={toggleSelectAllFiltered}
-                          />
-                        </th>
-                        <th className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Ref</th>
-                        <th className="px-2 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-12 text-center">Open</th>
-                        <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-64">Title</th>
-                        <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-64">Agency</th>
-                        {columns.source && <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Source</th>}
-                        {columns.category && <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">Category</th>}
-                        <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">Due</th>
-                        {columns.naics && <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">NAICS</th>}
-                        {columns.set_aside && <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">Set-aside</th>}
-                        {columns.notice_type && <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">Type</th>}
-                        {columns.psc && <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">PSC</th>}
-                        {columns.value && <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-36">Value</th>}
-                        <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-20">Fit</th>
-                        <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {filteredOpportunities.map((opp) => {
-                        const meta = extractContractMetadata(opp);
-                        const category = getOpportunityCategory(opp);
-                        const links = extractLinks(opp);
-                        const primaryLink = getPrimaryLink(opp);
-
-                        return (
-                          <tr
-                            key={opp.id}
-                            onClick={() => setSelectedId(opp.id)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                setSelectedId(opp.id);
-                              }
-                            }}
-                            tabIndex={0}
-                            className={`cursor-pointer hover:bg-gray-50 transition-colors ${selectedId === opp.id ? 'bg-gray-50 border-l-4 border-l-gray-900' : 'border-l-4 border-l-transparent'}`}
-                          >
-                            <td className="px-3 py-4" onClick={(e) => e.stopPropagation()}>
-                              <input type="checkbox" checked={selectedIds.has(opp.id)} onChange={() => toggleSelected(opp.id)} />
-                            </td>
-                            <td className="px-6 py-4 font-mono text-xs text-gray-600">{opp.external_ref}</td>
-                            <td className="px-2 py-4" onClick={(e) => e.stopPropagation()}>
-                              <button
-                                onClick={() => openExternal(getSamNoticeUrl(opp))}
-                                className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                                title="Open notice in SAM.gov"
-                              >
-                                <ExternalLink size={16} />
-                              </button>
-                            </td>
-                            <td className="px-6 py-4 font-medium text-gray-900 truncate max-w-[360px]">{opp.title}</td>
-                            <td className="px-6 py-4 text-sm text-gray-600 truncate max-w-[220px]">{opp.agency}</td>
-                            {columns.source && (
-                              <td className="px-6 py-4">
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getSourceBadgeClass(opp.source)}`}>
-                                  {opp.source}
-                                </span>
-                              </td>
-                            )}
-                            {columns.category && <td className="px-6 py-4 text-sm text-gray-700">{category}</td>}
-                            <td className="px-6 py-4 font-mono text-xs text-gray-600">
-                              <div className="flex items-center gap-2">
-                                <span>{formatDate(opp.due_date)}</span>
-                                {meta.dueDateMissing ? (
-                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
-                                    assumed
-                                  </span>
-                                ) : null}
-                              </div>
-                            </td>
-                            {columns.naics && <td className="px-6 py-4 font-mono text-xs text-gray-600">{opp.naics_code ?? '---'}</td>}
-                            {columns.set_aside && <td className="px-6 py-4 text-sm text-gray-600">{opp.set_aside ?? '---'}</td>}
-                            {columns.notice_type && <td className="px-6 py-4 text-sm text-gray-600">{meta.noticeType ?? '---'}</td>}
-                            {columns.psc && <td className="px-6 py-4 font-mono text-xs text-gray-600">{meta.psc ?? '---'}</td>}
-                            {columns.value && <td className="px-6 py-4 text-sm text-gray-700">{formatCurrency(opp.estimated_value ?? null)}</td>}
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono font-bold text-gray-900">{opp.fit_score ?? '---'}</span>
-                                <div className="h-1.5 w-16 bg-gray-200 rounded-full overflow-hidden">
-                                  <div className="h-full bg-gray-900" style={{ width: `${Math.max(0, Math.min(100, opp.fit_score ?? 0))}%` }} />
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getStatusBadgeClass(opp.status)}`}>
-                                {formatStatus(opp.status)}
-                              </span>
-                            </td>
+                  (() => {
+                    const thBase = density === 'compact' ? 'px-2 py-2 text-[11px]' : 'px-3 py-3 text-xs';
+                    const tdBase = density === 'compact' ? 'px-2 py-2 text-xs' : 'px-3 py-4 text-sm';
+                    return (
+                      <table className="w-full text-left table-fixed border-collapse">
+                        <thead className="bg-white sticky top-0 z-10 border-b border-gray-100">
+                          <tr>
+                            <th className={`${thBase} w-10`}>
+                              <input
+                                type="checkbox"
+                                checked={filteredOpportunities.length > 0 && selectedIds.size === filteredOpportunities.length}
+                                onChange={toggleSelectAllFiltered}
+                              />
+                            </th>
+                            <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-24`}>Ref</th>
+                            <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-12 text-center`}>Open</th>
+                            <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-64`}>Title</th>
+                            <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-64`}>Agency</th>
+                            {columns.source && <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-24`}>Source</th>}
+                            {columns.category && <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-32`}>Category</th>}
+                            <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-32`}>Due</th>
+                            {columns.naics && <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-24 whitespace-nowrap`}>NAICS</th>}
+                            {columns.set_aside && <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-32 whitespace-nowrap`}>Set-aside</th>}
+                            {columns.notice_type && <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-32`}>Type</th>}
+                            {columns.psc && <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-24`}>PSC</th>}
+                            {columns.value && <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-28 whitespace-nowrap`}>Value</th>}
+                            <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-20`}>Fit</th>
+                            <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-24`}>Status</th>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {filteredOpportunities.map((opp) => {
+                            const meta = extractContractMetadata(opp);
+                            const category = getOpportunityCategory(opp);
+                            const links = extractLinks(opp);
+                            const primaryLink = getPrimaryLink(opp);
+
+                            return (
+                              <tr
+                                key={opp.id}
+                                onClick={() => setSelectedId(opp.id)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    setSelectedId(opp.id);
+                                  }
+                                }}
+                                tabIndex={0}
+                                className={`cursor-pointer hover:bg-gray-50 transition-colors ${selectedId === opp.id ? 'bg-gray-50 border-l-4 border-l-gray-900' : 'border-l-4 border-l-transparent'}`}
+                              >
+                                <td className={`${tdBase}`} onClick={(e) => e.stopPropagation()}>
+                                  <input type="checkbox" checked={selectedIds.has(opp.id)} onChange={() => toggleSelected(opp.id)} />
+                                </td>
+                                <td className={`${tdBase} font-mono text-xs text-gray-600 whitespace-nowrap`}>{opp.external_ref}</td>
+                                <td className={`${tdBase}`} onClick={(e) => e.stopPropagation()}>
+                                  <button
+                                    onClick={() => openExternal(getSamNoticeUrl(opp))}
+                                    className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                                    title="Open notice in SAM.gov"
+                                  >
+                                    <ExternalLink size={16} />
+                                  </button>
+                                </td>
+                                <td className={`${tdBase} font-medium text-gray-900 truncate max-w-[320px]`}>{opp.title}</td>
+                                <td className={`${tdBase} text-sm text-gray-600 truncate max-w-[220px]`}>{opp.agency}</td>
+                                {columns.source && (
+                                  <td className={`${tdBase} whitespace-nowrap`}>
+                                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getSourceBadgeClass(opp.source)}`}>
+                                      {opp.source}
+                                    </span>
+                                  </td>
+                                )}
+                                {columns.category && <td className={`${tdBase} text-sm text-gray-700`}>{category}</td>}
+                                <td className={`${tdBase} font-mono text-xs text-gray-600 whitespace-nowrap`}>
+                                  <div className="flex items-center gap-2">
+                                    <span>{formatDate(opp.due_date)}</span>
+                                    {meta.dueDateMissing ? (
+                                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                                        assumed
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                </td>
+                                {columns.naics && <td className={`${tdBase} font-mono text-xs text-gray-600 whitespace-nowrap min-w-[70px]`}>{opp.naics_code ?? '---'}</td>}
+                                {columns.set_aside && <td className={`${tdBase} text-sm text-gray-600`}>{opp.set_aside ?? '---'}</td>}
+                                {columns.notice_type && <td className={`${tdBase} text-sm text-gray-600`}>{meta.noticeType ?? '---'}</td>}
+                                {columns.psc && <td className={`${tdBase} font-mono text-xs text-gray-600`}>{meta.psc ?? '---'}</td>}
+                                {columns.value && <td className={`${tdBase} text-sm text-gray-700 whitespace-nowrap min-w-[80px]`}>{formatCurrency(opp.estimated_value ?? null)}</td>}
+                                <td className={`${tdBase} whitespace-nowrap`}>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono font-bold text-gray-900">{opp.fit_score ?? '---'}</span>
+                                    <div className="h-1.5 w-16 bg-gray-200 rounded-full overflow-hidden">
+                                      <div className="h-full bg-gray-900" style={{ width: `${Math.max(0, Math.min(100, opp.fit_score ?? 0))}%` }} />
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className={`${tdBase} whitespace-nowrap`}>
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getStatusBadgeClass(opp.status)}`}>
+                                    {formatStatus(opp.status)}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    );
+                  })()
                 )}
               </div>
             </div>
 
             {/* Right: Detail panel (desktop permanent, mobile modal) */}
             {selectedOpportunity ? (
-              <div className="w-[400px] shrink-0 bg-white border-l border-gray-100 flex flex-col">
+              <div className="w-[360px] xl:w-[420px] shrink-0 bg-white border-l border-gray-100 flex flex-col">
                 <div className="p-6 border-b border-gray-100">
                   <div className="min-w-0">
                     <div className="flex items-center flex-wrap gap-2 mb-2">
@@ -923,15 +1064,26 @@ const Dashboard: React.FC = () => {
                           </button>
                         </div>
 
-                        <button
-                          onClick={() => handleCreateWorkspace(selectedOpportunity)}
-                          disabled={isCreatingWorkspace}
-                          className="flex items-center justify-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-60"
-                          title="Create submission workspace to start building your proposal"
-                        >
-                          {isCreatingWorkspace ? <Loader2 size={16} className="animate-spin" /> : <ChevronRight size={16} />}
-                          Start Proposal
-                        </button>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => handleCreateWorkspace(selectedOpportunity)}
+                            disabled={isCreatingWorkspace || isQuickPursuing}
+                            className="flex items-center justify-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-60"
+                            title="Create submission workspace to start building your proposal"
+                          >
+                            {isCreatingWorkspace ? <Loader2 size={16} className="animate-spin" /> : <ChevronRight size={16} />}
+                            Start Proposal
+                          </button>
+                          <button
+                            onClick={() => handleQuickPursue(selectedOpportunity)}
+                            disabled={isQuickPursuing || isCreatingWorkspace}
+                            className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-all disabled:opacity-60"
+                            title="One-click: create workspace + generate full AI proposal automatically"
+                          >
+                            {isQuickPursuing ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
+                            Quick Pursue
+                          </button>
+                        </div>
 
                         <div className="grid grid-cols-2 gap-4">
                           <div>
@@ -1101,7 +1253,7 @@ const Dashboard: React.FC = () => {
               </div>
             ) : (
               /* Empty state when no opportunity selected */
-              <div className="w-[400px] shrink-0 bg-white border-l border-gray-100 flex flex-col items-center justify-center p-8 text-center">
+              <div className="w-[360px] xl:w-[420px] shrink-0 bg-white border-l border-gray-100 flex flex-col items-center justify-center p-8 text-center">
                 <FileText size={64} className="text-gray-300 mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">Select an opportunity</h3>
                 <p className="text-sm text-gray-500 max-w-xs">
@@ -1143,6 +1295,28 @@ const Dashboard: React.FC = () => {
                       {isLoading ? <Loader2 size={16} className="animate-spin" /> : <RotateCw size={16} />}
                       Refresh List
                     </button>
+
+                    <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-700 px-2 py-1">
+                      <span className="hidden xl:inline text-gray-500">Layout</span>
+                      {(['auto', 'split', 'stacked'] as LayoutPreference[]).map((opt) => (
+                        <button
+                          key={opt}
+                          onClick={() => setLayoutPref(opt)}
+                          className={`px-2 py-1 rounded-md transition-colors ${
+                            layoutPref === opt ? 'bg-gray-900 text-white' : 'hover:bg-gray-100'
+                          }`}
+                          title={
+                            opt === 'auto'
+                              ? 'Auto: switch based on width'
+                              : opt === 'split'
+                                ? 'Force split (list + detail)'
+                                : 'Force stacked (list only)'
+                          }
+                        >
+                          {opt === 'auto' ? 'Auto' : opt === 'split' ? 'Split' : 'Stacked'}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
@@ -1164,7 +1338,7 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex flex-wrap gap-3 items-center">
-                <div className="relative flex-1 min-w-[240px]">
+                <div className="relative flex-1 min-w-[18rem]">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                   <input
                     type="text"
@@ -1252,35 +1426,35 @@ const Dashboard: React.FC = () => {
                   value={naicsPrefix}
                   onChange={(e) => setNaicsPrefix(e.target.value)}
                   placeholder="NAICS prefix..."
-                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm w-[140px]"
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm min-w-[8.5rem] flex-1 sm:flex-none sm:w-[8.5rem]"
                 />
 
                 <input
                   value={pscPrefix}
                   onChange={(e) => setPscPrefix(e.target.value)}
                   placeholder="PSC prefix..."
-                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm w-[120px]"
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm min-w-[7.5rem] flex-1 sm:flex-none sm:w-[7.5rem]"
                 />
 
                 <input
                   value={companyFilter}
                   onChange={(e) => setCompanyFilter(e.target.value)}
                   placeholder="Company..."
-                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm w-[180px]"
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm min-w-[10rem] flex-1 sm:flex-none sm:w-[10rem]"
                 />
 
                 <input
                   value={valueMin}
                   onChange={(e) => setValueMin(e.target.value)}
                   placeholder="Min $..."
-                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm w-[120px]"
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm min-w-[7.5rem] flex-1 sm:flex-none sm:w-[7.5rem]"
                 />
 
                 <input
                   value={valueMax}
                   onChange={(e) => setValueMax(e.target.value)}
                   placeholder="Max $..."
-                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm w-[120px]"
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm min-w-[7.5rem] flex-1 sm:flex-none sm:w-[7.5rem]"
                 />
 
                 <label className="flex items-center gap-2 text-sm text-gray-700 px-2">
@@ -1365,30 +1539,30 @@ const Dashboard: React.FC = () => {
                     )}
                   </div>
                 ) : (
-                  <table className="w-full text-left">
+                  <table className="w-full text-left text-sm">
                     <thead className="bg-white sticky top-0 z-10 border-b border-gray-100">
                       <tr>
-                        <th className="px-3 py-3 w-10">
+                        <th className="px-2 py-3 w-10">
                           <input
                             type="checkbox"
                             checked={filteredOpportunities.length > 0 && selectedIds.size === filteredOpportunities.length}
                             onChange={toggleSelectAllFiltered}
                           />
                         </th>
-                        <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Ref</th>
-                        <th className="px-2 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-10">Open</th>
-                        <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Title</th>
-                        <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Agency</th>
-                        {columns.source && <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Source</th>}
-                        {columns.category && <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>}
-                        <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Due</th>
-                        {columns.naics && <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">NAICS</th>}
-                        {columns.set_aside && <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Set-aside</th>}
-                        {columns.notice_type && <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>}
-                        {columns.psc && <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">PSC</th>}
-                        {columns.value && <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Value</th>}
-                        <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Fit</th>
-                        <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="px-3 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Ref</th>
+                        <th className="px-2 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-10">Open</th>
+                        <th className="px-3 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Title</th>
+                        <th className="px-3 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Agency</th>
+                        {columns.source && <th className="px-3 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Source</th>}
+                        {columns.category && <th className="px-3 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Category</th>}
+                        <th className="px-3 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Due</th>
+                        {columns.naics && <th className="px-2 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">NAICS</th>}
+                        {columns.set_aside && <th className="px-2 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Set-aside</th>}
+                        {columns.notice_type && <th className="px-2 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Type</th>}
+                        {columns.psc && <th className="px-2 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">PSC</th>}
+                        {columns.value && <th className="px-2 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Value</th>}
+                        <th className="px-2 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Fit</th>
+                        <th className="px-2 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -1411,10 +1585,10 @@ const Dashboard: React.FC = () => {
                             tabIndex={0}
                             className={`cursor-pointer hover:bg-gray-50 transition-colors ${selectedId === opp.id ? 'bg-gray-50 border-l-4 border-l-gray-900' : 'border-l-4 border-l-transparent'}`}
                           >
-                            <td className="px-3 py-4" onClick={(e) => e.stopPropagation()}>
+                            <td className="px-2 py-4" onClick={(e) => e.stopPropagation()}>
                               <input type="checkbox" checked={selectedIds.has(opp.id)} onChange={() => toggleSelected(opp.id)} />
                             </td>
-                            <td className="px-6 py-4 font-mono text-xs text-gray-600">{opp.external_ref}</td>
+                            <td className="px-3 py-4 font-mono text-xs text-gray-600 whitespace-nowrap">{opp.external_ref}</td>
                             <td className="px-2 py-4" onClick={(e) => e.stopPropagation()}>
                               <button
                                 onClick={() => openExternal(getSamNoticeUrl(opp))}
@@ -1424,17 +1598,17 @@ const Dashboard: React.FC = () => {
                                 <ExternalLink size={16} />
                               </button>
                             </td>
-                            <td className="px-6 py-4 font-medium text-gray-900 truncate max-w-[360px]">{opp.title}</td>
-                            <td className="px-6 py-4 text-sm text-gray-600 truncate max-w-[220px]">{opp.agency}</td>
+                            <td className="px-3 py-4 font-medium text-gray-900 truncate max-w-[260px]">{opp.title}</td>
+                            <td className="px-3 py-4 text-sm text-gray-600 truncate max-w-[200px]">{opp.agency}</td>
                             {columns.source && (
-                              <td className="px-6 py-4">
+                              <td className="px-3 py-4 whitespace-nowrap">
                                 <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getSourceBadgeClass(opp.source)}`}>
                                   {opp.source}
                                 </span>
                               </td>
                             )}
-                            {columns.category && <td className="px-6 py-4 text-sm text-gray-700">{category}</td>}
-                            <td className="px-6 py-4 font-mono text-xs text-gray-600">
+                            {columns.category && <td className="px-3 py-4 text-sm text-gray-700">{category}</td>}
+                            <td className="px-3 py-4 font-mono text-xs text-gray-600 whitespace-nowrap">
                               <div className="flex items-center gap-2">
                                 <span>{formatDate(opp.due_date)}</span>
                                 {meta.dueDateMissing ? (
@@ -1444,12 +1618,12 @@ const Dashboard: React.FC = () => {
                                 ) : null}
                               </div>
                             </td>
-                            {columns.naics && <td className="px-6 py-4 font-mono text-xs text-gray-600">{opp.naics_code ?? '---'}</td>}
-                            {columns.set_aside && <td className="px-6 py-4 text-sm text-gray-600">{opp.set_aside ?? '---'}</td>}
-                            {columns.notice_type && <td className="px-6 py-4 text-sm text-gray-600">{meta.noticeType ?? '---'}</td>}
-                            {columns.psc && <td className="px-6 py-4 font-mono text-xs text-gray-600">{meta.psc ?? '---'}</td>}
-                            {columns.value && <td className="px-6 py-4 text-sm text-gray-700">{formatCurrency(opp.estimated_value ?? null)}</td>}
-                            <td className="px-6 py-4">
+                            {columns.naics && <td className="px-2 py-4 font-mono text-xs text-gray-600 whitespace-nowrap min-w-[70px]">{opp.naics_code ?? '---'}</td>}
+                            {columns.set_aside && <td className="px-2 py-4 text-sm text-gray-600">{opp.set_aside ?? '---'}</td>}
+                            {columns.notice_type && <td className="px-2 py-4 text-sm text-gray-600">{meta.noticeType ?? '---'}</td>}
+                            {columns.psc && <td className="px-2 py-4 font-mono text-xs text-gray-600">{meta.psc ?? '---'}</td>}
+                            {columns.value && <td className="px-2 py-4 text-sm text-gray-700 whitespace-nowrap min-w-[80px]">{formatCurrency(opp.estimated_value ?? null)}</td>}
+                            <td className="px-2 py-4 whitespace-nowrap">
                               <div className="flex items-center gap-2">
                                 <span className="font-mono font-bold text-gray-900">{opp.fit_score ?? '---'}</span>
                                 <div className="h-1.5 w-16 bg-gray-200 rounded-full overflow-hidden">
@@ -1457,7 +1631,7 @@ const Dashboard: React.FC = () => {
                                 </div>
                               </div>
                             </td>
-                            <td className="px-6 py-4">
+                            <td className="px-2 py-4 whitespace-nowrap">
                               <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getStatusBadgeClass(opp.status)}`}>
                                 {formatStatus(opp.status)}
                               </span>
@@ -1481,7 +1655,9 @@ const Dashboard: React.FC = () => {
                 />
 
                 {/* Modal panel */}
-                <div className="fixed inset-y-0 right-0 w-full max-w-md bg-white shadow-xl z-50 flex flex-col">
+                <div
+                  className={`fixed inset-y-0 right-0 w-full ${effectiveLayout === 'stacked' ? 'max-w-lg' : 'max-w-md'} bg-white shadow-xl z-50 flex flex-col`}
+                >
                   <div className="p-4 border-b border-gray-100 flex items-center justify-between">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center flex-wrap gap-2 mb-2">
@@ -1541,14 +1717,25 @@ const Dashboard: React.FC = () => {
                             </button>
                           </div>
 
-                          <button
-                            onClick={() => handleCreateWorkspace(selectedOpportunity)}
-                            disabled={isCreatingWorkspace}
-                            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-60"
-                          >
-                            {isCreatingWorkspace ? <Loader2 size={16} className="animate-spin" /> : <ChevronRight size={16} />}
-                            Create Workspace
-                          </button>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              onClick={() => handleCreateWorkspace(selectedOpportunity)}
+                              disabled={isCreatingWorkspace || isQuickPursuing}
+                              className="flex items-center justify-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-60"
+                            >
+                              {isCreatingWorkspace ? <Loader2 size={16} className="animate-spin" /> : <ChevronRight size={16} />}
+                              Start Proposal
+                            </button>
+                            <button
+                              onClick={() => handleQuickPursue(selectedOpportunity)}
+                              disabled={isQuickPursuing || isCreatingWorkspace}
+                              className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-all disabled:opacity-60"
+                              title="One-click: create workspace + generate full AI proposal"
+                            >
+                              {isQuickPursuing ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
+                              Quick Pursue
+                            </button>
+                          </div>
 
                           <div className="grid grid-cols-2 gap-4">
                             <div>

@@ -43,3 +43,28 @@ class TestHealthEndpoint:
         assert "status" in data
         assert "checks" in data
         assert "database" in data["checks"]
+
+    def test_health_reports_redis_connected_when_configured(self, test_app, mock_supabase):
+        from unittest.mock import MagicMock, patch
+
+        fake_redis = MagicMock()
+        fake_redis.ping.return_value = True
+
+        with patch("backend.database.get_supabase_client", return_value=mock_supabase), \
+             patch("backend.main.app_settings.REDIS_URL", "redis://localhost:6379/0"), \
+             patch("redis.from_url", return_value=fake_redis):
+            data = test_app.get("/health").json()
+
+        assert data["checks"]["redis"] == "connected"
+        assert data["status"] == "healthy"
+
+    def test_health_reports_redis_error_when_configured_but_unreachable(self, test_app, mock_supabase):
+        from unittest.mock import patch
+
+        with patch("backend.database.get_supabase_client", return_value=mock_supabase), \
+             patch("backend.main.app_settings.REDIS_URL", "redis://localhost:6379/0"), \
+             patch("redis.from_url", side_effect=RuntimeError("redis down")):
+            data = test_app.get("/health").json()
+
+        assert data["status"] == "degraded"
+        assert "error:" in data["checks"]["redis"]
