@@ -49,3 +49,12 @@ backend/scripts/reset_admin_password.py
 
 # Vercel
 .vercel
+
+# Celery beat scheduler state
+celerybeat-schedule
+celerybeat-schedule-shm
+celerybeat-schedule-wal
+
+# Local dev artifacts
+.logs/
+NUL
