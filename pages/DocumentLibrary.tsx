@@ -20,6 +20,7 @@ const CATEGORIES = [
 
 const DocumentLibrary = () => {
   const [documents, setDocuments] = useState<any[]>([]);
+  const safeDocuments = Array.isArray(documents) ? documents : [];
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -40,10 +41,21 @@ const DocumentLibrary = () => {
     setLoading(true);
     try {
       const res = await api.listDocuments({ category: category || undefined, search: search || undefined });
-      if (res.data) {
-        setDocuments(res.data);
-        setTotal(res.total || res.data.length);
+      const raw = res.data;
+      let list: any[] = [];
+      let totalCount: number;
+      if (Array.isArray(raw)) {
+        list = raw;
+        totalCount = raw.length;
+      } else if (raw && typeof raw === 'object' && 'data' in raw) {
+        const payload = raw as { data?: unknown[]; total?: number };
+        list = Array.isArray(payload.data) ? payload.data : [];
+        totalCount = typeof payload.total === 'number' ? payload.total : list.length;
+      } else {
+        totalCount = 0;
       }
+      setDocuments(list);
+      setTotal(totalCount);
     } catch {
       setError('Failed to load documents. Please try again.');
     } finally {
@@ -190,14 +202,14 @@ const DocumentLibrary = () => {
         <div className="flex items-center justify-center py-20 text-gray-400">
           <Loader2 size={24} className="animate-spin mr-2" /> Loading documents...
         </div>
-      ) : documents.length === 0 ? (
+      ) : safeDocuments.length === 0 ? (
         <div className="text-center py-20">
           <Folder size={48} className="mx-auto text-gray-300 mb-4" />
           <p className="text-gray-500 text-sm">No documents yet. Upload your first reusable document.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {documents.map((doc) => (
+          {safeDocuments.map((doc) => (
             <div key={doc.id} className="rounded-xl border border-gray-200 bg-white p-4 hover:border-gray-300 transition-colors">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-2">
@@ -222,7 +234,7 @@ const DocumentLibrary = () => {
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
                   {CATEGORIES.find(c => c.value === doc.category)?.label || doc.category}
                 </span>
-                {(doc.tags || []).slice(0, 3).map((tag: string) => (
+                {(Array.isArray(doc.tags) ? doc.tags : []).slice(0, 3).map((tag: string) => (
                   <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700">
                     <Tag size={10} className="mr-1" />{tag}
                   </span>

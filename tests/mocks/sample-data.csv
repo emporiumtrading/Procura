@@ -1,0 +1,5 @@
+external_ref,title,agency,source,fit_score
+SAM-001,Cloud Services,DoD,sam_gov,90
+SAM-002,Network Modernization,DHS,sam_gov,85
+SAM-003,Data Platform,NASA,govcon,88
+

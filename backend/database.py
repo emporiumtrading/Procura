@@ -48,6 +48,12 @@ def get_supabase_client() -> Client:
         logger.info("Supabase client initialized with anon key")
         return client
 
+    # Allow placeholder keys so the server can start for local viewing; real requests will fail until keys are set.
+    if settings.SUPABASE_URL and (anon_key or service_key):
+        key = (service_key or anon_key or "").strip() or "placeholder"
+        client = create_client(settings.SUPABASE_URL, key)
+        logger.warning("Supabase client using placeholder keys; set SUPABASE_ANON_KEY or SUPABASE_SERVICE_ROLE_KEY for real data")
+        return client
     raise ValueError("Supabase keys not configured (set SUPABASE_ANON_KEY or SUPABASE_SERVICE_ROLE_KEY)")
 
 
