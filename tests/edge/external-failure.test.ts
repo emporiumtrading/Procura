@@ -37,16 +37,16 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
           external_ref: 'SAM-001',
           title: 'Test Opportunity',
           agency: 'DoD',
-          source: 'sam_gov'
+          source: 'sam_gov',
         });
-        
+
         expect(false).toBe(true); // Should fail
       } catch (error) {
         // Verify graceful failure
         expect(error.message).toContain('Database connection failed');
         expect(mockSupabase.db.query).toHaveBeenCalled();
         expect(mockSupabase.db.isConnected).toHaveBeenCalled();
-        
+
         // Verify fallback mechanism
         expect(mockCircuitBreaker.isOpen('supabase')).toBe(true);
         expect(mockSupabase.cache.get('opportunities')).not.toBeNull();
@@ -57,23 +57,23 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
       // Mock database failure but cache available
       mockSupabase.db.query.mockRejectedValue(new Error('Connection refused'));
       mockSupabase.db.isConnected.mockResolvedValue(false);
-      
+
       // Mock cached data
       const cachedOpportunities = [
         { id: 'opp-001', external_ref: 'SAM-001', title: 'Cached Opportunity', agency: 'DoD' },
-        { id: 'opp-002', external_ref: 'SAM-002', title: 'Another Cached', agency: 'DHS' }
+        { id: 'opp-002', external_ref: 'SAM-002', title: 'Another Cached', agency: 'DHS' },
       ];
-      
+
       mockSupabase.cache.get.mockResolvedValue(cachedOpportunities);
 
       // Test data retrieval during downtime
       const result = await externalFailureTesting.getOpportunities();
-      
+
       // Should return cached data
       expect(result.success).toBe(true);
       expect(result.data.length).toBe(2);
       expect(result.from_cache).toBe(true);
-      
+
       // Verify cache was used
       expect(mockSupabase.cache.get).toHaveBeenCalledWith('opportunities');
       expect(mockSupabase.db.query).toHaveBeenCalled(); // Still tried database first
@@ -96,11 +96,11 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
 
       // Test with retry logic
       const result = await externalFailureTesting.getOpportunitiesWithRetry();
-      
+
       // Should eventually succeed
       expect(result.success).toBe(true);
       expect(connectionAttempts).toBe(3); // 3 attempts total
-      
+
       // Verify circuit breaker closed after recovery
       expect(mockCircuitBreaker.isOpen('supabase')).toBe(false);
       expect(mockCircuitBreaker.close('supabase')).toHaveBeenCalled();
@@ -109,7 +109,7 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
     it('handles database query timeouts', async () => {
       // Mock slow database query
       mockSupabase.db.query.mockImplementation(async () => {
-        await new Promise(resolve => setTimeout(resolve, 5000)); // 5 second delay
+        await new Promise((resolve) => setTimeout(resolve, 5000)); // 5 second delay
         return { data: [], count: 0 };
       });
 
@@ -121,7 +121,7 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
         // Verify timeout was handled
         expect(error.message).toContain('Query timed out');
         expect(mockSupabase.db.query).toHaveBeenCalled();
-        
+
         // Verify timeout mechanism
         expect(mockSupabase.db.cancelQuery).toHaveBeenCalled();
       }
@@ -137,22 +137,22 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
       // Mock payment failure
       mockStripe.paymentIntents.create.mockRejectedValue({
         type: 'card_error',
-        message: 'Card was declined'
+        message: 'Card was declined',
       });
 
       try {
         const result = await externalFailureTesting.processPayment({
           amount: 5000,
           currency: 'usd',
-          source: 'card_123'
+          source: 'card_123',
         });
-        
+
         expect(false).toBe(true); // Should fail
       } catch (error) {
         // Verify payment failure was handled
         expect(error.type).toBe('card_error');
         expect(error.message).toBe('Card was declined');
-        
+
         // Verify transaction was not completed
         expect(mockStripe.paymentIntents.confirm).not.toHaveBeenCalled();
       }
@@ -162,21 +162,21 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
       // Mock subscription creation failure
       mockStripe.subscriptions.create.mockRejectedValue({
         type: 'api_connection_error',
-        message: 'Network error connecting to Stripe'
+        message: 'Network error connecting to Stripe',
       });
 
       try {
         const result = await externalFailureTesting.createSubscription({
           customer_email: 'user@example.com',
-          plan: 'pro-monthly'
+          plan: 'pro-monthly',
         });
-        
+
         expect(false).toBe(true); // Should fail
       } catch (error) {
         // Verify subscription failure was handled
         expect(error.type).toBe('api_connection_error');
         expect(error.message).toBe('Network error connecting to Stripe');
-        
+
         // Verify user was notified
         expect(mockDatabase.logSubscriptionError).toHaveBeenCalled();
         expect(mockEmailService.sendErrorNotification).toHaveBeenCalled();
@@ -189,15 +189,18 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
 
       const webhookPayload = {
         type: 'invoice.payment_succeeded',
-        data: { object: { customer: 'cus_123', subscription: 'sub_123' } }
+        data: { object: { customer: 'cus_123', subscription: 'sub_123' } },
       };
 
-      const result = await externalFailureTesting.processStripeWebhook(webhookPayload, 'invalid-signature');
-      
+      const result = await externalFailureTesting.processStripeWebhook(
+        webhookPayload,
+        'invalid-signature'
+      );
+
       // Should handle invalid webhook gracefully
       expect(result.success).toBe(false);
       expect(result.error).toBe('Invalid webhook signature');
-      
+
       // Verify invalid webhook was logged
       expect(mockDatabase.logInvalidWebhook).toHaveBeenCalled();
     });
@@ -206,7 +209,7 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
       // Mock rate limiting response
       mockStripe.plans.list.mockRejectedValue({
         type: 'rate_limit_error',
-        message: 'Too many requests'
+        message: 'Too many requests',
       });
 
       try {
@@ -216,7 +219,7 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
         // Verify rate limiting was handled
         expect(error.type).toBe('rate_limit_error');
         expect(error.message).toBe('Too many requests');
-        
+
         // Verify retry logic was triggered
         expect(mockCircuitBreaker.isOpen('stripe')).toBe(true);
         expect(mockRetryLogic.scheduleRetry).toHaveBeenCalled();
@@ -236,12 +239,12 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
 
       // Test scraping during site downtime
       const result = await externalFailureTesting.scrapeAllSources();
-      
+
       // Should handle failures gracefully
       expect(result.success).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
       expect(result.errors[0]).toContain('Site unavailable');
-      
+
       // Verify fallback mechanisms
       expect(mockExternalScrapers.useCachedData).toHaveBeenCalled();
       expect(mockEmailService.sendScrapingAlert).toHaveBeenCalled();
@@ -250,7 +253,7 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
     it('handles HTML structure changes in scraping targets', async () => {
       // Mock HTML structure change
       const changedHtml = '<html><body><div class="new-structure">...</div></body></html>';
-      
+
       mockExternalScrapers.scrapeSamGov.mockImplementation(async () => {
         // Simulate parsing failure due to structure change
         throw new Error('HTML structure changed');
@@ -262,10 +265,10 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
       } catch (error) {
         // Verify structure change was detected
         expect(error.message).toContain('HTML structure changed');
-        
+
         // Verify fallback parser was attempted
         expect(mockExternalScrapers.useFallbackParser).toHaveBeenCalled();
-        
+
         // Verify alert was sent
         expect(mockEmailService.sendHtmlChangeAlert).toHaveBeenCalled();
       }
@@ -281,7 +284,7 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
       } catch (error) {
         // Verify rate limiting was handled
         expect(error.message).toContain('Too many requests');
-        
+
         // Verify retry with backoff
         expect(mockRetryLogic.scheduleRetryWithBackoff).toHaveBeenCalled();
         expect(mockCircuitBreaker.isOpen('govcon')).toBe(true);
@@ -290,7 +293,9 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
 
     it('handles authentication failures with scraping sites', async () => {
       // Mock authentication failure
-      mockExternalScrapers.authenticateWithSource.mockRejectedValue(new Error('Invalid credentials'));
+      mockExternalScrapers.authenticateWithSource.mockRejectedValue(
+        new Error('Invalid credentials')
+      );
 
       try {
         const result = await externalFailureTesting.authenticateWithSource('sam_gov');
@@ -298,10 +303,10 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
       } catch (error) {
         // Verify authentication failure was handled
         expect(error.message).toContain('Invalid credentials');
-        
+
         // Verify credential rotation was attempted
         expect(mockCredentialManager.rotateCredentials).toHaveBeenCalled();
-        
+
         // Verify alert was sent
         expect(mockEmailService.sendAuthFailureAlert).toHaveBeenCalled();
       }
@@ -320,17 +325,17 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
 
       // Test operations during network partition
       const result = await externalFailureTesting.performAllOperations();
-      
+
       // Should handle gracefully with appropriate fallbacks
       expect(result.success).toBe(false);
       expect(result.network_status).toBe('partition');
       expect(result.operations_attempted).toBeGreaterThan(0);
       expect(result.operations_failed).toBeGreaterThan(0);
-      
+
       // Verify network detection
       expect(mockNetwork.isOnline).toHaveBeenCalled();
       expect(mockNetwork.getConnectionType).toHaveBeenCalled();
-      
+
       // Verify offline mode handling
       expect(mockOfflineMode.activate).toHaveBeenCalled();
       expect(mockOfflineMode.saveForLater).toHaveBeenCalled();
@@ -346,13 +351,13 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
 
       // Test operations with partial connectivity
       const result = await externalFailureTesting.performOperationsWithPartialConnectivity();
-      
+
       // Should handle partial success
       expect(result.success).toBe(false);
       expect(result.network_status).toBe('partial');
       expect(result.operations_succeeded.length).toBeGreaterThan(0);
       expect(result.operations_failed.length).toBeGreaterThan(0);
-      
+
       // Verify connectivity checks
       expect(mockNetwork.canReachService).toHaveBeenCalledWith('database');
       expect(mockNetwork.canReachService).toHaveBeenCalledWith('stripe');
@@ -369,11 +374,11 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
 
       // Test with network recovery
       const result = await externalFailureTesting.monitorNetworkRecovery();
-      
+
       // Should detect recovery
       expect(result.network_recovered).toBe(true);
       expect(networkCheckCount).toBeGreaterThan(3);
-      
+
       // Verify services were reconnected
       expect(mockNetwork.reconnectServices).toHaveBeenCalled();
       expect(mockCircuitBreaker.closeAll).toHaveBeenCalled();
@@ -387,7 +392,7 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
   describe('Retry Logic Effectiveness', () => {
     it('implements exponential backoff correctly', async () => {
       vi.useFakeTimers();
-      
+
       // Mock API that fails first 2 times, then succeeds
       let callCount = 0;
       mockExternalScrapers.scrapeSamGov.mockImplementation(() => {
@@ -404,11 +409,11 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
       const endTime = Date.now();
 
       const duration = endTime - startTime;
-      
+
       // Should have retried 2 times (3 total calls)
       expect(callCount).toBe(3);
       expect(result.success).toBe(true);
-      
+
       // Verify exponential backoff timing
       expect(duration).toBeGreaterThan(3000); // Initial + 1s + 2s delays
       expect(duration).toBeLessThan(5000); // But < 5 seconds
@@ -416,7 +421,7 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
 
     it('stops retrying after max attempts', async () => {
       vi.useFakeTimers();
-      
+
       // Mock API that always fails
       mockExternalScrapers.scrapeGovCon.mockRejectedValue(new Error('Permanent failure'));
 
@@ -427,7 +432,7 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
       } catch (error) {
         const endTime = Date.now();
         const duration = endTime - startTime;
-        
+
         // Should have retried max attempts (3 times)
         expect(mockExternalScrapers.scrapeGovCon).toHaveBeenCalledTimes(3);
         expect(duration).toBeGreaterThan(6000); // Roughly 1s + 2s + 4s = 7s
@@ -459,7 +464,7 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
       // Mock consecutive failures
       for (let i = 0; i < 5; i++) {
         mockExternalScrapers.scrapeSamGov.mockRejectedValue(new Error('Failure'));
-        
+
         try {
           await externalFailureTesting.scrapeSamGov();
         } catch (error) {
@@ -470,7 +475,7 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
       // Circuit should be open after consecutive failures
       expect(mockCircuitBreaker.isOpen('sam_gov')).toBe(true);
       expect(mockCircuitBreaker.getFailureCount('sam_gov')).toBe(5);
-      
+
       // Should not attempt new calls while circuit is open
       try {
         await externalFailureTesting.scrapeSamGov();
@@ -482,7 +487,7 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
 
     it('half-opens circuit after timeout', async () => {
       vi.useFakeTimers();
-      
+
       // Mock circuit that opens, then half-opens after timeout
       mockCircuitBreaker.isOpen.mockImplementation((service: string) => {
         return service === 'sam_gov';
@@ -494,15 +499,15 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
 
       // Fast-forward time
       await vi.advanceTimersByTime(15000); // 15 seconds
-      
+
       // Circuit should be half-open
       expect(mockCircuitBreaker.getHalfOpen('sam_gov')).toBe(true);
-      
+
       // Test half-open behavior
       const result = await externalFailureTesting.testHalfOpenCircuit();
       expect(result).toEqual({
         circuit_half_open: true,
-        test_successful: true
+        test_successful: true,
       });
     });
 
@@ -513,7 +518,7 @@ describe('External Dependency Failure Testing - Failure Mode Handling', () => {
 
       // Test successful operation
       const result = await externalFailureTesting.performOperationAfterRecovery();
-      
+
       expect(result.success).toBe(true);
       expect(mockCircuitBreaker.close('sam_gov')).toHaveBeenCalled();
       expect(mockCircuitBreaker.getFailureCount('sam_gov')).toBe(0); // Reset

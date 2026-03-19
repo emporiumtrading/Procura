@@ -13,7 +13,9 @@ test.describe('Authentication Flow', () => {
     await page.getByPlaceholder(/password/i).fill('WrongPassword!');
     await page.getByRole('button', { name: /sign in|log in/i }).click();
 
-    await expect(page.getByText(/invalid|error|incorrect|not found/i)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/invalid|error|incorrect|not found/i)).toBeVisible({
+      timeout: 10_000,
+    });
     // Should stay on landing page
     await expect(page).toHaveURL('/');
   });

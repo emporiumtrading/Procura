@@ -13,6 +13,7 @@ When users click the email confirmation link after signup, they're redirected to
 ### Step 1: Update Supabase Redirect URLs
 
 1. **Go to Supabase Dashboard:**
+
    ```
    https://supabase.com/dashboard
    ```
@@ -20,6 +21,7 @@ When users click the email confirmation link after signup, they're redirected to
 2. **Navigate to your project**
 
 3. **Go to Authentication Settings:**
+
    ```
    Left sidebar → Authentication → URL Configuration
    ```
@@ -50,6 +52,7 @@ When users click the email confirmation link after signup, they're redirected to
 If you want email links to work in both development and production:
 
 **Redirect URLs should include:**
+
 ```
 http://localhost:3000/**
 http://localhost:3000/#/dashboard
@@ -100,6 +103,7 @@ While in Supabase Dashboard:
 ### Issue: Still redirecting to localhost
 
 **Check:**
+
 1. Clear browser cache
 2. Sign up with a NEW email (not one used before)
 3. Verify Supabase settings were saved
@@ -110,6 +114,7 @@ While in Supabase Dashboard:
 ### Issue: Getting CORS errors
 
 **Fix in Supabase:**
+
 1. Dashboard → Settings → API
 2. Add your production domain to CORS allowed origins
 
@@ -118,6 +123,7 @@ While in Supabase Dashboard:
 ### Issue: Email not arriving
 
 **Check:**
+
 1. Spam folder
 2. Supabase Dashboard → Logs → check for email sending errors
 3. Email rate limits (Supabase free tier has limits)
@@ -141,6 +147,7 @@ After configuring Supabase:
 If you want different behavior in dev vs prod, you can use environment variables:
 
 ### Add to `.env.local` (development):
+
 ```env
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
@@ -148,6 +155,7 @@ VITE_APP_URL=http://localhost:3000
 ```
 
 ### Add to Vercel Environment Variables (production):
+
 ```env
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
@@ -157,21 +165,22 @@ VITE_APP_URL=https://your-production-domain.vercel.app
 ### Then update code to use env var:
 
 **lib/AuthContext.tsx:**
+
 ```typescript
 const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
 
 const signUp = async (email: string, password: string, fullName: string) => {
-    const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-            data: {
-                full_name: fullName,
-            },
-            emailRedirectTo: `${appUrl}/#/dashboard`,
-        },
-    });
-    return { error };
+  const { error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        full_name: fullName,
+      },
+      emailRedirectTo: `${appUrl}/#/dashboard`,
+    },
+  });
+  return { error };
 };
 ```
 
@@ -196,11 +205,13 @@ const signUp = async (email: string, password: string, fullName: string) => {
 ## What Your Production URL Is
 
 Check your Vercel dashboard:
+
 ```
 https://vercel.com/dashboard → Your Project → Domains
 ```
 
 You'll see something like:
+
 - `procura-xyz123.vercel.app` (auto-generated)
 - Or your custom domain if configured
 

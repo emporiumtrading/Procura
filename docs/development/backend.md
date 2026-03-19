@@ -3,6 +3,7 @@
 ## Overview
 
 The Procura backend is a production-grade FastAPI application that handles:
+
 - Contract opportunity discovery and storage
 - AI-powered qualification using LLMs
 - Submission workflow management
@@ -21,23 +22,27 @@ The Procura backend is a production-grade FastAPI application that handles:
 ### Setup
 
 1. **Create virtual environment:**
+
    ```bash
    cd backend
    python -m venv venv
    ```
 
 2. **Install dependencies:**
+
    ```bash
    venv\Scripts\python.exe -m pip install -r requirements.txt
    ```
 
 3. **Configure environment:**
+
    ```bash
    copy .env.example .env
    # Edit .env with your actual values
    ```
 
 4. **Generate security keys:**
+
    ```bash
    # Vault encryption key
    python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
@@ -47,6 +52,7 @@ The Procura backend is a production-grade FastAPI application that handles:
    ```
 
 5. **Start the server:**
+
    ```bash
    venv\Scripts\python.exe -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8001
    ```
@@ -96,6 +102,7 @@ backend/
 ## API Endpoints
 
 ### Opportunities (`/api/opportunities`)
+
 - `GET /` - List with filters
 - `GET /{id}` - Get single
 - `POST /sync` - Trigger discovery
@@ -103,6 +110,7 @@ backend/
 - `POST /{id}/qualify` - AI qualification
 
 ### Submissions (`/api/submissions`)
+
 - `GET /` - List user's submissions
 - `POST /` - Create workspace
 - `PATCH /{id}` - Update
@@ -110,12 +118,14 @@ backend/
 - `POST /{id}/finalize` - Execute submission
 
 ### Connectors (`/api/connectors`)
+
 - `GET /` - List all (admin)
 - `POST /` - Create
 - `POST /{id}/rotate` - Rotate credentials
 - `DELETE /{id}` - Revoke
 
 ### Admin (`/api/admin`)
+
 - `GET /users` - List users
 - `GET /health` - System health
 - `PATCH /autonomy` - Toggle autonomy mode
@@ -127,11 +137,13 @@ backend/
 For scheduled discovery tasks:
 
 1. **Start Redis:**
+
    ```bash
    docker run -d -p 6379:6379 redis:alpine
    ```
 
 2. **Start Celery worker:**
+
    ```bash
    venv\Scripts\celery.exe -A backend.tasks.celery_app worker --loglevel=info --pool=solo
    ```
@@ -148,16 +160,19 @@ For scheduled discovery tasks:
 ## Testing
 
 ### Run all tests
+
 ```bash
 venv\Scripts\py.test.exe
 ```
 
 ### Test specific connector
+
 ```bash
 venv\Scripts\python.exe test_connectors.py
 ```
 
 ### Test API endpoint
+
 ```bash
 curl http://localhost:8001/health
 ```
@@ -210,6 +225,7 @@ OPENMANUS_API_URL=http://localhost:8080
 ## Common Development Tasks
 
 ### Adding a new API endpoint
+
 1. Create route function in appropriate router file
 2. Add Pydantic models in `models.py`
 3. Implement business logic
@@ -217,6 +233,7 @@ OPENMANUS_API_URL=http://localhost:8080
 5. Test with Swagger UI
 
 ### Adding a new data source
+
 1. Create new connector in `scrapers/`
 2. Inherit from `BaseConnector`
 3. Implement `fetch_opportunities()` and `normalize()`
@@ -224,6 +241,7 @@ OPENMANUS_API_URL=http://localhost:8080
 5. Test with `test_connectors.py`
 
 ### Debugging Celery tasks
+
 1. Check Redis connection: `redis-cli ping`
 2. View Celery logs for errors
 3. Test task directly: `python -c "from backend.tasks.discovery import run_discovery_task; run_discovery_task()"`

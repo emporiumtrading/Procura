@@ -1,7 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Download, Search, ChevronDown, Filter, FileText, Image, Copy, Loader2,
-  ShieldCheck, ShieldAlert, CheckCircle, XCircle, RefreshCw
+  Download,
+  Search,
+  ChevronDown,
+  Filter,
+  FileText,
+  Copy,
+  Loader2,
+  ShieldCheck,
+  ShieldAlert,
+  CheckCircle,
+  XCircle,
+  RefreshCw,
 } from 'lucide-react';
 import { api } from '../lib/api';
 
@@ -42,15 +52,15 @@ const AuditVault = () => {
       return;
     }
     const data = response.data?.data ?? [];
-    const mapped = data.map((log: any) => ({
-      id: log.id,
-      submissionId: log.submission_ref ?? log.submission_id ?? 'N/A',
-      timestamp: log.timestamp ?? '',
-      portal: log.portal ?? 'Unknown',
-      status: log.status ?? 'PENDING',
-      receiptId: log.receipt_id ?? 'N/A',
-      hash: log.confirmation_hash ?? '',
-      action: log.action ?? '',
+    const mapped = data.map((log: Record<string, unknown>) => ({
+      id: String(log.id ?? ''),
+      submissionId: String(log.submission_ref ?? log.submission_id ?? 'N/A'),
+      timestamp: String(log.timestamp ?? ''),
+      portal: String(log.portal ?? 'Unknown'),
+      status: String(log.status ?? 'PENDING'),
+      receiptId: String(log.receipt_id ?? 'N/A'),
+      hash: String(log.confirmation_hash ?? ''),
+      action: String(log.action ?? ''),
     }));
     setLogs(mapped);
     setIsLoading(false);
@@ -61,10 +71,11 @@ const AuditVault = () => {
   }, []);
 
   const filteredLogs = useMemo(() => {
-    return logs.filter((log) =>
-      log.submissionId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      log.receiptId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      log.hash.toLowerCase().includes(searchQuery.toLowerCase())
+    return logs.filter(
+      (log) =>
+        log.submissionId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        log.receiptId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        log.hash.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [logs, searchQuery]);
 
@@ -98,21 +109,23 @@ const AuditVault = () => {
     try {
       const response = await api.verifyAuditLog(log.id);
       if (response.data) {
-        setVerifyResults(prev => ({
+        setVerifyResults((prev) => ({
           ...prev,
           [log.id]: {
             valid: response.data.valid ?? response.data.verified ?? false,
-            message: response.data.message ?? (response.data.valid ? 'Integrity verified' : 'Verification failed'),
+            message:
+              response.data.message ??
+              (response.data.valid ? 'Integrity verified' : 'Verification failed'),
           },
         }));
       } else {
-        setVerifyResults(prev => ({
+        setVerifyResults((prev) => ({
           ...prev,
           [log.id]: { valid: false, message: response.error || 'Verification request failed' },
         }));
       }
     } catch {
-      setVerifyResults(prev => ({
+      setVerifyResults((prev) => ({
         ...prev,
         [log.id]: { valid: false, message: 'Network error during verification' },
       }));
@@ -132,17 +145,25 @@ const AuditVault = () => {
       <div className="flex-1 overflow-y-auto p-8">
         <div className="max-w-[1200px] mx-auto flex flex-col gap-8">
           <nav className="flex items-center gap-2 text-sm text-gray-500">
-            <span className="hover:text-gray-900 dark:hover:text-white cursor-pointer transition-colors">Operations</span>
+            <span className="hover:text-gray-900 dark:hover:text-white cursor-pointer transition-colors">
+              Operations
+            </span>
             <span>{'>'}</span>
-            <span className="hover:text-gray-900 dark:hover:text-white cursor-pointer transition-colors">Submissions</span>
+            <span className="hover:text-gray-900 dark:hover:text-white cursor-pointer transition-colors">
+              Submissions
+            </span>
             <span>{'>'}</span>
             <span className="font-medium text-gray-900 dark:text-white">Audit Vault</span>
           </nav>
 
           <div className="flex justify-between items-start">
             <div className="max-w-2xl">
-              <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">Evidence & Audit Vault</h1>
-              <p className="text-gray-500 mt-2">Immutable record of external portal interactions and submission receipts.</p>
+              <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">
+                Evidence & Audit Vault
+              </h1>
+              <p className="text-gray-500 mt-2">
+                Immutable record of external portal interactions and submission receipts.
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -158,7 +179,11 @@ const AuditVault = () => {
                 disabled={isExporting || isLoading}
                 className="bg-gray-900 dark:bg-white text-white dark:text-black px-5 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm hover:opacity-90 active:scale-95 transition-all disabled:opacity-70 disabled:active:scale-100"
               >
-                {isExporting ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+                {isExporting ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <Download size={18} />
+                )}
                 {isExporting ? 'Exporting...' : 'Export Audit Trail'}
               </button>
             </div>
@@ -172,7 +197,10 @@ const AuditVault = () => {
 
           <div className="bg-white dark:bg-[#1e1e1e] p-1 rounded-xl flex flex-wrap gap-4 items-center border border-gray-200 dark:border-neutral-800 shadow-sm">
             <div className="relative flex-1 min-w-[300px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                size={18}
+              />
               <input
                 type="text"
                 value={searchQuery}
@@ -195,24 +223,39 @@ const AuditVault = () => {
             <table className="w-full text-left">
               <thead className="border-b border-gray-200 dark:border-neutral-800">
                 <tr>
-                  <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-gray-500">Submission ID</th>
-                  <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-gray-500">Timestamp (UTC)</th>
-                  <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-gray-500">Portal</th>
-                  <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-gray-500">Status</th>
-                  <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-gray-500">Receipt ID</th>
-                  <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-gray-500 text-right">Actions</th>
+                  <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    Submission ID
+                  </th>
+                  <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    Timestamp (UTC)
+                  </th>
+                  <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    Portal
+                  </th>
+                  <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    Status
+                  </th>
+                  <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    Receipt ID
+                  </th>
+                  <th className="py-4 px-6 text-xs font-semibold uppercase tracking-wider text-gray-500 text-right">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-neutral-800">
                 {isLoading ? (
                   <tr>
                     <td colSpan={6} className="text-center py-10 text-gray-500">
-                      <Loader2 size={18} className="inline-block animate-spin mr-2" /> Loading audit logs...
+                      <Loader2 size={18} className="inline-block animate-spin mr-2" /> Loading audit
+                      logs...
                     </td>
                   </tr>
                 ) : filteredLogs.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center py-10 text-gray-500">No records found matching your search.</td>
+                    <td colSpan={6} className="text-center py-10 text-gray-500">
+                      No records found matching your search.
+                    </td>
                   </tr>
                 ) : (
                   filteredLogs.map((log) => {
@@ -221,21 +264,29 @@ const AuditVault = () => {
                       <React.Fragment key={log.id}>
                         <tr className="hover:bg-gray-50 dark:hover:bg-neutral-800/50 group transition-colors">
                           <td className="py-4 px-6">
-                            <span className="text-sm font-semibold text-gray-900 dark:text-white">{log.submissionId}</span>
+                            <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                              {log.submissionId}
+                            </span>
                           </td>
-                          <td className="py-4 px-6 text-sm font-mono text-gray-600 dark:text-gray-400">{formatTimestamp(log.timestamp)}</td>
+                          <td className="py-4 px-6 text-sm font-mono text-gray-600 dark:text-gray-400">
+                            {formatTimestamp(log.timestamp)}
+                          </td>
                           <td className="py-4 px-6">
                             <div className="flex items-center gap-2">
                               <div className="w-2 h-2 rounded-full bg-gray-900 dark:bg-white"></div>
-                              <span className="text-sm font-medium text-gray-900 dark:text-white">{log.portal}</span>
+                              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                {log.portal}
+                              </span>
                             </div>
                           </td>
                           <td className="py-4 px-6">
-                            <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                              log.status === 'CONFIRMED'
-                                ? 'bg-gray-900 text-white dark:bg-white dark:text-black'
-                                : 'bg-white border border-gray-300 text-gray-700'
-                            }`}>
+                            <span
+                              className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                                log.status === 'CONFIRMED'
+                                  ? 'bg-gray-900 text-white dark:bg-white dark:text-black'
+                                  : 'bg-white border border-gray-300 text-gray-700'
+                              }`}
+                            >
                               {log.status}
                             </span>
                           </td>
@@ -249,7 +300,7 @@ const AuditVault = () => {
                                   size={14}
                                   className="opacity-0 group-hover/hash:opacity-100 text-gray-400 cursor-pointer hover:text-gray-900 transition-all"
                                   onClick={() => navigator.clipboard.writeText(log.hash)}
-                                  title="Copy confirmation hash"
+                                  aria-label="Copy confirmation hash"
                                 />
                               )}
                             </div>
@@ -277,10 +328,16 @@ const AuditVault = () => {
                                 ) : (
                                   <ShieldCheck size={12} />
                                 )}
-                                {vResult?.valid === true ? 'Verified' : vResult?.valid === false ? 'Failed' : 'Verify'}
+                                {vResult?.valid === true
+                                  ? 'Verified'
+                                  : vResult?.valid === false
+                                    ? 'Failed'
+                                    : 'Verify'}
                               </button>
                               <button
-                                onClick={() => setSelectedLog(selectedLog?.id === log.id ? null : log)}
+                                onClick={() =>
+                                  setSelectedLog(selectedLog?.id === log.id ? null : log)
+                                }
                                 className="p-1.5 rounded-md hover:bg-gray-100 text-gray-500 transition-colors"
                                 title="View details"
                               >
@@ -295,22 +352,38 @@ const AuditVault = () => {
                             <td colSpan={6} className="px-6 py-4 bg-gray-50 dark:bg-neutral-900/50">
                               <div className="grid grid-cols-2 gap-4 text-sm">
                                 <div>
-                                  <p className="text-xs font-semibold text-gray-400 uppercase mb-1">Confirmation Hash</p>
+                                  <p className="text-xs font-semibold text-gray-400 uppercase mb-1">
+                                    Confirmation Hash
+                                  </p>
                                   <code className="block text-xs font-mono bg-white dark:bg-neutral-800 p-2 rounded border border-gray-200 dark:border-neutral-700 break-all">
                                     {log.hash || 'No hash recorded'}
                                   </code>
                                 </div>
                                 <div>
-                                  <p className="text-xs font-semibold text-gray-400 uppercase mb-1">Action</p>
-                                  <p className="text-sm text-gray-700 dark:text-gray-300">{log.action || 'N/A'}</p>
+                                  <p className="text-xs font-semibold text-gray-400 uppercase mb-1">
+                                    Action
+                                  </p>
+                                  <p className="text-sm text-gray-700 dark:text-gray-300">
+                                    {log.action || 'N/A'}
+                                  </p>
                                 </div>
                                 {vResult && (
                                   <div className="col-span-2">
-                                    <p className="text-xs font-semibold text-gray-400 uppercase mb-1">Verification Result</p>
-                                    <div className={`flex items-center gap-2 p-2 rounded-lg text-sm font-medium ${
-                                      vResult.valid ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-                                    }`}>
-                                      {vResult.valid ? <CheckCircle size={16} /> : <XCircle size={16} />}
+                                    <p className="text-xs font-semibold text-gray-400 uppercase mb-1">
+                                      Verification Result
+                                    </p>
+                                    <div
+                                      className={`flex items-center gap-2 p-2 rounded-lg text-sm font-medium ${
+                                        vResult.valid
+                                          ? 'bg-green-50 text-green-700'
+                                          : 'bg-red-50 text-red-700'
+                                      }`}
+                                    >
+                                      {vResult.valid ? (
+                                        <CheckCircle size={16} />
+                                      ) : (
+                                        <XCircle size={16} />
+                                      )}
                                       {vResult.message}
                                     </div>
                                   </div>
@@ -326,7 +399,13 @@ const AuditVault = () => {
               </tbody>
             </table>
             <div className="px-6 py-4 border-t border-gray-200 dark:border-neutral-800 flex justify-between items-center">
-              <p className="text-xs text-gray-500">Showing <span className="font-bold text-gray-900 dark:text-white">{filteredLogs.length}</span> entries</p>
+              <p className="text-xs text-gray-500">
+                Showing{' '}
+                <span className="font-bold text-gray-900 dark:text-white">
+                  {filteredLogs.length}
+                </span>{' '}
+                entries
+              </p>
             </div>
           </div>
         </div>

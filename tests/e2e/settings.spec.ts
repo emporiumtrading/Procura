@@ -16,6 +16,8 @@ test.describe('Settings Page', () => {
   });
 
   test('MFA section is visible', async ({ page }) => {
-    await expect(page.getByText(/multi-factor|mfa|two-factor|authenticator/i).first()).toBeVisible();
+    await expect(
+      page.getByText(/multi-factor|mfa|two-factor|authenticator/i).first()
+    ).toBeVisible();
   });
 });

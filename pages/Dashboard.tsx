@@ -1,6 +1,21 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, ChevronDown, ChevronRight, Copy, ExternalLink, FileText, Loader2, Newspaper, RotateCw, Search, Sparkles, X, XCircle, Zap } from 'lucide-react';
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  ExternalLink,
+  FileText,
+  Loader2,
+  Newspaper,
+  RotateCw,
+  Search,
+  Sparkles,
+  X,
+  XCircle,
+  Zap,
+} from 'lucide-react';
 import { api } from '../lib/api';
 import NewsFeed from '../components/NewsFeed';
 import {
@@ -38,6 +53,7 @@ const COLUMN_LABELS: Record<ColumnKey, string> = {
 const LOCAL_STORAGE_COLUMNS_KEY = 'procura.dashboard.columns.v1';
 const LOCAL_STORAGE_LAYOUT_KEY = 'procura.dashboard.layout_pref.v1';
 const LOCAL_STORAGE_DENSITY_KEY = 'procura.dashboard.density.v1';
+const LOCAL_STORAGE_FILTERS_KEY = 'procura.dashboard.filters.v1';
 
 const DEFAULT_COLUMNS: Record<ColumnKey, boolean> = {
   source: true,
@@ -49,11 +65,13 @@ const DEFAULT_COLUMNS: Record<ColumnKey, boolean> = {
   value: true,
 };
 
+const LIST_PAGE_SIZE = 25;
+
 type DashboardLayoutMode = 'split' | 'stacked';
 type LayoutPreference = 'auto' | DashboardLayoutMode;
 type RowDensity = 'normal' | 'compact';
 
-const useDashboardLayoutMode = (ref: React.RefObject<HTMLElement>) => {
+const useDashboardLayoutMode = (ref: React.RefObject<HTMLElement | null>) => {
   const [mode, setMode] = useState<DashboardLayoutMode>('stacked');
 
   useEffect(() => {
@@ -65,7 +83,9 @@ const useDashboardLayoutMode = (ref: React.RefObject<HTMLElement>) => {
       // Some browsers can briefly report 0 during initial layout; in that case
       // fall back to viewport width so desktop users don't get stuck in stacked mode.
       const fallbackWidth =
-        typeof window !== 'undefined' ? Math.max(window.innerWidth, document.documentElement.clientWidth) : 0;
+        typeof window !== 'undefined'
+          ? Math.max(window.innerWidth, document.documentElement.clientWidth)
+          : 0;
       const effectiveWidth = width > 0 ? width : fallbackWidth;
       setMode(effectiveWidth >= 960 ? 'split' : 'stacked');
     };
@@ -102,7 +122,7 @@ const Dashboard: React.FC = () => {
   const [density, setDensity] = useState<RowDensity>(() => {
     if (typeof localStorage === 'undefined') return 'compact';
     const raw = localStorage.getItem(LOCAL_STORAGE_DENSITY_KEY);
-    return raw === 'normal' || raw === 'compact' ? raw as RowDensity : 'compact';
+    return raw === 'normal' || raw === 'compact' ? (raw as RowDensity) : 'compact';
   });
   const effectiveLayout: DashboardLayoutMode = layoutPref === 'auto' ? layoutMode : layoutPref;
   const isDesktop = effectiveLayout === 'split';
@@ -111,19 +131,80 @@ const Dashboard: React.FC = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
 
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | OpportunityStatus>('all');
-  const [sourceFilter, setSourceFilter] = useState<'all' | string>('all');
+  const [search, setSearch] = useState(() => {
+    if (typeof sessionStorage === 'undefined') return '';
+    try {
+      const raw = sessionStorage.getItem(LOCAL_STORAGE_FILTERS_KEY);
+      if (!raw) return '';
+      const parsed = JSON.parse(raw);
+      if (!isRecord(parsed)) return '';
+      const value = (parsed as any).search;
+      return typeof value === 'string' ? value : '';
+    } catch {
+      return '';
+    }
+  });
+  const [statusFilter, setStatusFilter] = useState<'all' | OpportunityStatus>(() => {
+    if (typeof sessionStorage === 'undefined') return 'all';
+    try {
+      const raw = sessionStorage.getItem(LOCAL_STORAGE_FILTERS_KEY);
+      if (!raw) return 'all';
+      const parsed = JSON.parse(raw);
+      if (!isRecord(parsed)) return 'all';
+      const value = (parsed as any).statusFilter;
+      if (
+        value === 'all' ||
+        value === 'new' ||
+        value === 'reviewing' ||
+        value === 'qualified' ||
+        value === 'disqualified' ||
+        value === 'submitted'
+      ) {
+        return value;
+      }
+      return 'all';
+    } catch {
+      return 'all';
+    }
+  });
+  const [sourceFilter, setSourceFilter] = useState<'all' | string>(() => {
+    if (typeof sessionStorage === 'undefined') return 'all';
+    try {
+      const raw = sessionStorage.getItem(LOCAL_STORAGE_FILTERS_KEY);
+      if (!raw) return 'all';
+      const parsed = JSON.parse(raw);
+      if (!isRecord(parsed)) return 'all';
+      const value = (parsed as any).sourceFilter;
+      return typeof value === 'string' && value.length > 0 ? value : 'all';
+    } catch {
+      return 'all';
+    }
+  });
   const [categoryFilter, setCategoryFilter] = useState<'all' | string>('all');
   const [naicsPrefix, setNaicsPrefix] = useState('');
   const [companyFilter, setCompanyFilter] = useState('');
-  const [minFitScore, setMinFitScore] = useState<number | 'any'>('any');
+  const [minFitScore, setMinFitScore] = useState<number | 'any'>(() => {
+    if (typeof sessionStorage === 'undefined') return 'any';
+    try {
+      const raw = sessionStorage.getItem(LOCAL_STORAGE_FILTERS_KEY);
+      if (!raw) return 'any';
+      const parsed = JSON.parse(raw);
+      if (!isRecord(parsed)) return 'any';
+      const value = (parsed as any).minFitScore;
+      if (value === 'any') return 'any';
+      const n = typeof value === 'number' ? value : Number(value);
+      return Number.isFinite(n) ? n : 'any';
+    } catch {
+      return 'any';
+    }
+  });
   const [dueSoonOnly, setDueSoonOnly] = useState(false);
   const [sortBy, setSortBy] = useState<'due' | 'fit' | 'posted'>('posted');
   const [noticeTypeFilter, setNoticeTypeFilter] = useState<'all' | string>('all');
   const [pscPrefix, setPscPrefix] = useState('');
   const [valueMin, setValueMin] = useState('');
   const [valueMax, setValueMax] = useState('');
+  const [listPage, setListPage] = useState(1);
 
   const [columns, setColumns] = useState<Record<ColumnKey, boolean>>(() => {
     try {
@@ -186,15 +267,20 @@ const Dashboard: React.FC = () => {
     const maxValue = parseNumber(valueMax);
 
     const base = opportunities.filter((opp) => {
+      const title = (opp.title ?? '').toLowerCase();
+      const agency = (opp.agency ?? '').toLowerCase();
+      const externalRef = (opp.external_ref ?? '').toLowerCase();
+
       const matchesSearch =
         !needle ||
-        opp.title.toLowerCase().includes(needle) ||
-        opp.agency.toLowerCase().includes(needle) ||
-        opp.external_ref.toLowerCase().includes(needle);
+        title.includes(needle) ||
+        agency.includes(needle) ||
+        externalRef.includes(needle);
       if (!matchesSearch) return false;
 
       if (statusFilter !== 'all' && (opp.status ?? 'new') !== statusFilter) return false;
-      if (sourceFilter !== 'all' && (opp.source ?? '').toLowerCase() !== sourceFilter.toLowerCase()) return false;
+      if (sourceFilter !== 'all' && (opp.source ?? '').toLowerCase() !== sourceFilter.toLowerCase())
+        return false;
 
       if (minFitScore !== 'any') {
         const score = opp.fit_score ?? null;
@@ -234,7 +320,12 @@ const Dashboard: React.FC = () => {
 
       if (minValue !== null || maxValue !== null) {
         const raw = opp.estimated_value;
-        const v = raw === null || raw === undefined || raw === '' ? null : (typeof raw === 'number' ? raw : Number(raw));
+        const v =
+          raw === null || raw === undefined || raw === ''
+            ? null
+            : typeof raw === 'number'
+              ? raw
+              : Number(raw);
         if (!Number.isFinite(v as any)) return false;
         if (minValue !== null && (v as number) < minValue) return false;
         if (maxValue !== null && (v as number) > maxValue) return false;
@@ -273,6 +364,13 @@ const Dashboard: React.FC = () => {
     valueMax,
   ]);
 
+  const paginatedOpportunities = useMemo(() => {
+    const start = (listPage - 1) * LIST_PAGE_SIZE;
+    return filteredOpportunities.slice(start, start + LIST_PAGE_SIZE);
+  }, [filteredOpportunities, listPage]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredOpportunities.length / LIST_PAGE_SIZE));
+
   const selectedOpportunity = useMemo(
     () => opportunities.find((o) => o.id === selectedId) ?? null,
     [opportunities, selectedId]
@@ -302,7 +400,7 @@ const Dashboard: React.FC = () => {
     setNotice(null);
     const response = await api.getOpportunities({ page: 1, limit: 100 });
     if (response.error) {
-      setNotice({ kind: 'error', message: response.error });
+      setNotice({ kind: 'error', message: 'Failed to load opportunities' });
       setOpportunities([]);
       setSelectedId(null);
       setIsLoading(false);
@@ -318,6 +416,10 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     loadOpportunities();
   }, []);
+
+  useEffect(() => {
+    setListPage(1);
+  }, [filteredOpportunities.length]);
 
   // Auto-select first opportunity on desktop load
   useEffect(() => {
@@ -351,6 +453,20 @@ const Dashboard: React.FC = () => {
   }, [density]);
 
   useEffect(() => {
+    try {
+      const payload = {
+        search,
+        statusFilter,
+        sourceFilter,
+        minFitScore,
+      };
+      sessionStorage.setItem(LOCAL_STORAGE_FILTERS_KEY, JSON.stringify(payload));
+    } catch {
+      // Ignore storage errors (private mode, quota, etc.)
+    }
+  }, [search, statusFilter, sourceFilter, minFitScore]);
+
+  useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !isDesktop) {
         setSelectedId(null);
@@ -359,7 +475,6 @@ const Dashboard: React.FC = () => {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [isDesktop]);
-
 
   const handleSync = async () => {
     if (isSyncing) return;
@@ -486,7 +601,9 @@ const Dashboard: React.FC = () => {
     }
 
     // Fire proposal generation in background — don't await so we navigate immediately
-    api.generateFullProposal(submissionId).catch(() => {/* silent — workspace shows generation state */});
+    api.generateFullProposal(submissionId).catch(() => {
+      /* silent — workspace shows generation state */
+    });
 
     setNotice({ kind: 'success', message: 'Workspace created! Proposal generation started.' });
     setIsQuickPursuing(false);
@@ -528,7 +645,11 @@ const Dashboard: React.FC = () => {
     });
   };
 
-  const runWithConcurrency = async <T,>(items: T[], limit: number, fn: (item: T, idx: number) => Promise<void>) => {
+  const runWithConcurrency = async <T,>(
+    items: T[],
+    limit: number,
+    fn: (item: T, idx: number) => Promise<void>
+  ) => {
     const concurrency = Math.max(1, Math.min(limit, 10));
     let cursor = 0;
 
@@ -566,7 +687,10 @@ const Dashboard: React.FC = () => {
       setOpportunities((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
     });
 
-    setNotice({ kind: failed ? 'error' : 'success', message: `Bulk qualify done. OK: ${ok}, failed: ${failed}` });
+    setNotice({
+      kind: failed ? 'error' : 'success',
+      message: `Bulk qualify done. OK: ${ok}, failed: ${failed}`,
+    });
     setIsBulkRunning(false);
   };
 
@@ -594,7 +718,10 @@ const Dashboard: React.FC = () => {
       setOpportunities((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
     });
 
-    setNotice({ kind: failed ? 'error' : 'success', message: `Bulk disqualify done. OK: ${ok}, failed: ${failed}` });
+    setNotice({
+      kind: failed ? 'error' : 'success',
+      message: `Bulk disqualify done. OK: ${ok}, failed: ${failed}`,
+    });
     setIsBulkRunning(false);
   };
 
@@ -617,22 +744,36 @@ const Dashboard: React.FC = () => {
 
                   <div className="flex items-center gap-2 shrink-0">
                     <button
+                      data-testid="filter-button"
                       onClick={handleSync}
-                      disabled={isSyncing || syncRemainingSeconds > 0}
+                      disabled={isSyncing || syncRemainingSeconds > 0 || isLoading}
                       className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-60"
                       title="Fetch latest opportunities from SAM.gov and other sources"
                     >
-                      {isSyncing ? <Loader2 size={16} className="animate-spin" /> : <RotateCw size={16} />}
-                      {syncRemainingSeconds > 0 ? `Sync (${syncRemainingSeconds}s)` : isSyncing ? 'Syncing...' : 'Sync Opportunities'}
+                      {isSyncing ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <RotateCw size={16} />
+                      )}
+                      {syncRemainingSeconds > 0
+                        ? `Sync (${syncRemainingSeconds}s)`
+                        : isSyncing
+                          ? 'Syncing...'
+                          : 'Sync Opportunities'}
                     </button>
 
                     <button
+                      data-testid="retry-button"
                       onClick={loadOpportunities}
                       disabled={isLoading}
                       className="flex items-center gap-2 px-3 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-all disabled:opacity-60"
                       title="Reload the current opportunity list"
                     >
-                      {isLoading ? <Loader2 size={16} className="animate-spin" /> : <RotateCw size={16} />}
+                      {isLoading ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <RotateCw size={16} />
+                      )}
                       Refresh List
                     </button>
 
@@ -667,7 +808,11 @@ const Dashboard: React.FC = () => {
                           className={`px-2 py-1 rounded-md transition-colors ${
                             density === opt ? 'bg-gray-900 text-white' : 'hover:bg-gray-100'
                           }`}
-                          title={opt === 'compact' ? 'Tighter rows, more columns visible' : 'Comfortable row spacing'}
+                          title={
+                            opt === 'compact'
+                              ? 'Tighter rows, more columns visible'
+                              : 'Comfortable row spacing'
+                          }
                         >
                           {opt === 'compact' ? 'Compact' : 'Comfort'}
                         </button>
@@ -678,25 +823,36 @@ const Dashboard: React.FC = () => {
 
                 {notice && (
                   <div
-                    className={`mt-4 px-4 py-3 rounded-lg border text-sm ${notice.kind === 'error'
-                      ? 'bg-red-50 border-red-200 text-red-700'
-                      : notice.kind === 'success'
-                        ? 'bg-green-50 border-green-200 text-green-700'
-                        : 'bg-gray-50 border-gray-200 text-gray-700'
-                      }`}
+                    data-testid={notice.kind === 'error' ? 'error-banner' : undefined}
+                    className={`mt-4 px-4 py-3 rounded-lg border text-sm ${
+                      notice.kind === 'error'
+                        ? 'bg-red-50 border-red-200 text-red-700'
+                        : notice.kind === 'success'
+                          ? 'bg-green-50 border-green-200 text-green-700'
+                          : 'bg-gray-50 border-gray-200 text-gray-700'
+                    }`}
                   >
                     <div className="flex items-start gap-2">
-                      {notice.kind === 'error' ? <AlertTriangle size={16} className="mt-0.5" /> : null}
+                      {notice.kind === 'error' ? (
+                        <AlertTriangle size={16} className="mt-0.5" />
+                      ) : null}
                       <div className="min-w-0">{notice.message}</div>
                     </div>
                   </div>
                 )}
               </div>
 
-              <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex flex-wrap gap-3 items-center">
+              <div
+                className="p-4 border-b border-gray-100 bg-gray-50/50 flex flex-wrap gap-3 items-center"
+                data-testid="filters"
+              >
                 <div className="relative flex-1 min-w-[18rem]">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <Search
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                    size={18}
+                  />
                   <input
+                    data-testid="search-input"
                     type="text"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
@@ -706,6 +862,7 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 <select
+                  data-testid="filter-status"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as any)}
                   className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
@@ -719,6 +876,7 @@ const Dashboard: React.FC = () => {
                 </select>
 
                 <select
+                  data-testid="filter-source"
                   value={sourceFilter}
                   onChange={(e) => setSourceFilter(e.target.value)}
                   className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
@@ -757,10 +915,25 @@ const Dashboard: React.FC = () => {
                   ))}
                 </select>
 
+                <input
+                  type="number"
+                  data-testid="filter-min-fit-score"
+                  min={0}
+                  max={100}
+                  placeholder="Min fit"
+                  value={minFitScore === 'any' ? '' : minFitScore}
+                  onChange={(e) =>
+                    setMinFitScore(e.target.value === '' ? 'any' : Number(e.target.value))
+                  }
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm w-20"
+                />
                 <select
                   value={minFitScore}
-                  onChange={(e) => setMinFitScore(e.target.value === 'any' ? 'any' : Number(e.target.value))}
-                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
+                  onChange={(e) =>
+                    setMinFitScore(e.target.value === 'any' ? 'any' : Number(e.target.value))
+                  }
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm sr-only"
+                  aria-hidden
                 >
                   <option value="any">Any fit</option>
                   <option value="70">70+</option>
@@ -769,6 +942,7 @@ const Dashboard: React.FC = () => {
                 </select>
 
                 <select
+                  data-testid="sort-select"
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as any)}
                   className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
@@ -777,6 +951,14 @@ const Dashboard: React.FC = () => {
                   <option value="fit">Sort: Fit</option>
                   <option value="posted">Sort: Posted</option>
                 </select>
+
+                <button
+                  type="button"
+                  data-testid="apply-filters"
+                  className="px-3 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800"
+                >
+                  Apply
+                </button>
 
                 <input
                   value={naicsPrefix}
@@ -814,7 +996,11 @@ const Dashboard: React.FC = () => {
                 />
 
                 <label className="flex items-center gap-2 text-sm text-gray-700 px-2">
-                  <input type="checkbox" checked={dueSoonOnly} onChange={(e) => setDueSoonOnly(e.target.checked)} />
+                  <input
+                    type="checkbox"
+                    checked={dueSoonOnly}
+                    onChange={(e) => setDueSoonOnly(e.target.checked)}
+                  />
                   Due &lt; 7d
                 </label>
 
@@ -823,13 +1009,22 @@ const Dashboard: React.FC = () => {
                     Columns
                   </summary>
                   <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg p-3 z-20">
-                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Visible columns</div>
+                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                      Visible columns
+                    </div>
                     {Object.keys(COLUMN_LABELS).map((key) => {
                       const k = key as ColumnKey;
                       return (
-                        <label key={k} className="flex items-center justify-between gap-3 py-1 text-sm text-gray-700">
+                        <label
+                          key={k}
+                          className="flex items-center justify-between gap-3 py-1 text-sm text-gray-700"
+                        >
                           <span>{COLUMN_LABELS[k]}</span>
-                          <input type="checkbox" checked={!!columns[k]} onChange={() => toggleColumn(k)} />
+                          <input
+                            type="checkbox"
+                            checked={!!columns[k]}
+                            onChange={() => toggleColumn(k)}
+                          />
                         </label>
                       );
                     })}
@@ -870,18 +1065,25 @@ const Dashboard: React.FC = () => {
                 )}
 
                 {isLoading ? (
-                  <div className="px-6 py-10 text-gray-500 flex items-center">
+                  <div
+                    className="px-6 py-10 text-gray-500 flex items-center"
+                    data-testid="loading-spinner"
+                  >
                     <Loader2 size={18} className="animate-spin mr-2" /> Loading opportunities...
                   </div>
                 ) : filteredOpportunities.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+                  <div
+                    className="flex flex-col items-center justify-center py-16 px-6 text-center"
+                    data-testid="empty-state"
+                  >
                     <Search size={64} className="text-gray-300 mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No opportunities found</h3>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      No opportunities found
+                    </h3>
                     <p className="text-sm text-gray-500 mb-6 max-w-md">
                       {opportunities.length === 0
-                        ? "Click \"Sync Opportunities\" to fetch the latest from SAM.gov and other sources"
-                        : "Try adjusting your filters or search terms"
-                      }
+                        ? 'Click "Sync Opportunities" to fetch the latest from SAM.gov and other sources'
+                        : 'Try adjusting your filters or search terms'}
                     </p>
                     {opportunities.length === 0 && (
                       <button
@@ -889,15 +1091,25 @@ const Dashboard: React.FC = () => {
                         disabled={isSyncing || syncRemainingSeconds > 0}
                         className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-all disabled:opacity-60"
                       >
-                        {isSyncing ? <Loader2 size={16} className="animate-spin" /> : <RotateCw size={16} />}
-                        {syncRemainingSeconds > 0 ? `Wait ${syncRemainingSeconds}s` : isSyncing ? 'Syncing...' : 'Sync Opportunities'}
+                        {isSyncing ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <RotateCw size={16} />
+                        )}
+                        {syncRemainingSeconds > 0
+                          ? `Wait ${syncRemainingSeconds}s`
+                          : isSyncing
+                            ? 'Syncing...'
+                            : 'Sync Opportunities'}
                       </button>
                     )}
                   </div>
                 ) : (
                   (() => {
-                    const thBase = density === 'compact' ? 'px-2 py-2 text-[11px]' : 'px-3 py-3 text-xs';
-                    const tdBase = density === 'compact' ? 'px-2 py-2 text-xs' : 'px-3 py-4 text-sm';
+                    const thBase =
+                      density === 'compact' ? 'px-2 py-2 text-[11px]' : 'px-3 py-3 text-xs';
+                    const tdBase =
+                      density === 'compact' ? 'px-2 py-2 text-xs' : 'px-3 py-4 text-sm';
                     return (
                       <table className="w-full text-left table-fixed border-collapse">
                         <thead className="bg-white sticky top-0 z-10 border-b border-gray-100">
@@ -905,28 +1117,101 @@ const Dashboard: React.FC = () => {
                             <th className={`${thBase} w-10`}>
                               <input
                                 type="checkbox"
-                                checked={filteredOpportunities.length > 0 && selectedIds.size === filteredOpportunities.length}
+                                checked={
+                                  filteredOpportunities.length > 0 &&
+                                  selectedIds.size === filteredOpportunities.length
+                                }
                                 onChange={toggleSelectAllFiltered}
                               />
                             </th>
-                            <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-24`}>Ref</th>
-                            <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-12 text-center`}>Open</th>
-                            <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-64`}>Title</th>
-                            <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-64`}>Agency</th>
-                            {columns.source && <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-24`}>Source</th>}
-                            {columns.category && <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-32`}>Category</th>}
-                            <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-32`}>Due</th>
-                            {columns.naics && <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-24 whitespace-nowrap`}>NAICS</th>}
-                            {columns.set_aside && <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-32 whitespace-nowrap`}>Set-aside</th>}
-                            {columns.notice_type && <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-32`}>Type</th>}
-                            {columns.psc && <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-24`}>PSC</th>}
-                            {columns.value && <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-28 whitespace-nowrap`}>Value</th>}
-                            <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-20`}>Fit</th>
-                            <th className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-24`}>Status</th>
+                            <th
+                              className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-24`}
+                            >
+                              Ref
+                            </th>
+                            <th
+                              className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-12 text-center`}
+                            >
+                              Open
+                            </th>
+                            <th
+                              className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-64`}
+                            >
+                              Title
+                            </th>
+                            <th
+                              className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-64`}
+                            >
+                              Agency
+                            </th>
+                            {columns.source && (
+                              <th
+                                className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-24`}
+                              >
+                                Source
+                              </th>
+                            )}
+                            {columns.category && (
+                              <th
+                                className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-32`}
+                              >
+                                Category
+                              </th>
+                            )}
+                            <th
+                              className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-32`}
+                            >
+                              Due
+                            </th>
+                            {columns.naics && (
+                              <th
+                                className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-24 whitespace-nowrap`}
+                              >
+                                NAICS
+                              </th>
+                            )}
+                            {columns.set_aside && (
+                              <th
+                                className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-32 whitespace-nowrap`}
+                              >
+                                Set-aside
+                              </th>
+                            )}
+                            {columns.notice_type && (
+                              <th
+                                className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-32`}
+                              >
+                                Type
+                              </th>
+                            )}
+                            {columns.psc && (
+                              <th
+                                className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-24`}
+                              >
+                                PSC
+                              </th>
+                            )}
+                            {columns.value && (
+                              <th
+                                className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-28 whitespace-nowrap`}
+                              >
+                                Value
+                              </th>
+                            )}
+                            <th
+                              className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-20`}
+                            >
+                              Fit
+                            </th>
+                            <th
+                              className={`${thBase} font-semibold text-gray-500 uppercase tracking-wider w-24`}
+                            >
+                              Status
+                            </th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                          {filteredOpportunities.map((opp) => {
+                          {paginatedOpportunities.map((opp) => {
                             const meta = extractContractMetadata(opp);
                             const category = getOpportunityCategory(opp);
                             const links = extractLinks(opp);
@@ -935,6 +1220,9 @@ const Dashboard: React.FC = () => {
                             return (
                               <tr
                                 key={opp.id}
+                                role="article"
+                                data-testid="opportunity-card"
+                                data-id={opp.id}
                                 onClick={() => setSelectedId(opp.id)}
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter' || e.key === ' ') {
@@ -946,9 +1234,17 @@ const Dashboard: React.FC = () => {
                                 className={`cursor-pointer hover:bg-gray-50 transition-colors ${selectedId === opp.id ? 'bg-gray-50 border-l-4 border-l-gray-900' : 'border-l-4 border-l-transparent'}`}
                               >
                                 <td className={`${tdBase}`} onClick={(e) => e.stopPropagation()}>
-                                  <input type="checkbox" checked={selectedIds.has(opp.id)} onChange={() => toggleSelected(opp.id)} />
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedIds.has(opp.id)}
+                                    onChange={() => toggleSelected(opp.id)}
+                                  />
                                 </td>
-                                <td className={`${tdBase} font-mono text-xs text-gray-600 whitespace-nowrap`}>{opp.external_ref}</td>
+                                <td
+                                  className={`${tdBase} font-mono text-xs text-gray-600 whitespace-nowrap`}
+                                >
+                                  {opp.external_ref}
+                                </td>
                                 <td className={`${tdBase}`} onClick={(e) => e.stopPropagation()}>
                                   <button
                                     onClick={() => openExternal(getSamNoticeUrl(opp))}
@@ -958,17 +1254,33 @@ const Dashboard: React.FC = () => {
                                     <ExternalLink size={16} />
                                   </button>
                                 </td>
-                                <td className={`${tdBase} font-medium text-gray-900 truncate max-w-[320px]`}>{opp.title}</td>
-                                <td className={`${tdBase} text-sm text-gray-600 truncate max-w-[220px]`}>{opp.agency}</td>
+                                <td
+                                  className={`${tdBase} font-medium text-gray-900 truncate max-w-[320px]`}
+                                  data-testid="opportunity-title"
+                                  aria-label={opp.title}
+                                >
+                                  {opp.title}
+                                </td>
+                                <td
+                                  className={`${tdBase} text-sm text-gray-600 truncate max-w-[220px]`}
+                                >
+                                  {opp.agency}
+                                </td>
                                 {columns.source && (
                                   <td className={`${tdBase} whitespace-nowrap`}>
-                                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getSourceBadgeClass(opp.source)}`}>
+                                    <span
+                                      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getSourceBadgeClass(opp.source)}`}
+                                    >
                                       {opp.source}
                                     </span>
                                   </td>
                                 )}
-                                {columns.category && <td className={`${tdBase} text-sm text-gray-700`}>{category}</td>}
-                                <td className={`${tdBase} font-mono text-xs text-gray-600 whitespace-nowrap`}>
+                                {columns.category && (
+                                  <td className={`${tdBase} text-sm text-gray-700`}>{category}</td>
+                                )}
+                                <td
+                                  className={`${tdBase} font-mono text-xs text-gray-600 whitespace-nowrap`}
+                                >
                                   <div className="flex items-center gap-2">
                                     <span>{formatDate(opp.due_date)}</span>
                                     {meta.dueDateMissing ? (
@@ -978,21 +1290,54 @@ const Dashboard: React.FC = () => {
                                     ) : null}
                                   </div>
                                 </td>
-                                {columns.naics && <td className={`${tdBase} font-mono text-xs text-gray-600 whitespace-nowrap min-w-[70px]`}>{opp.naics_code ?? '---'}</td>}
-                                {columns.set_aside && <td className={`${tdBase} text-sm text-gray-600`}>{opp.set_aside ?? '---'}</td>}
-                                {columns.notice_type && <td className={`${tdBase} text-sm text-gray-600`}>{meta.noticeType ?? '---'}</td>}
-                                {columns.psc && <td className={`${tdBase} font-mono text-xs text-gray-600`}>{meta.psc ?? '---'}</td>}
-                                {columns.value && <td className={`${tdBase} text-sm text-gray-700 whitespace-nowrap min-w-[80px]`}>{formatCurrency(opp.estimated_value ?? null)}</td>}
+                                {columns.naics && (
+                                  <td
+                                    className={`${tdBase} font-mono text-xs text-gray-600 whitespace-nowrap min-w-[70px]`}
+                                  >
+                                    {opp.naics_code ?? '---'}
+                                  </td>
+                                )}
+                                {columns.set_aside && (
+                                  <td className={`${tdBase} text-sm text-gray-600`}>
+                                    {opp.set_aside ?? '---'}
+                                  </td>
+                                )}
+                                {columns.notice_type && (
+                                  <td className={`${tdBase} text-sm text-gray-600`}>
+                                    {meta.noticeType ?? '---'}
+                                  </td>
+                                )}
+                                {columns.psc && (
+                                  <td className={`${tdBase} font-mono text-xs text-gray-600`}>
+                                    {meta.psc ?? '---'}
+                                  </td>
+                                )}
+                                {columns.value && (
+                                  <td
+                                    className={`${tdBase} text-sm text-gray-700 whitespace-nowrap min-w-[80px]`}
+                                  >
+                                    {formatCurrency(opp.estimated_value ?? null)}
+                                  </td>
+                                )}
                                 <td className={`${tdBase} whitespace-nowrap`}>
                                   <div className="flex items-center gap-2">
-                                    <span className="font-mono font-bold text-gray-900">{opp.fit_score ?? '---'}</span>
+                                    <span className="font-mono font-bold text-gray-900">
+                                      {opp.fit_score ?? '---'}
+                                    </span>
                                     <div className="h-1.5 w-16 bg-gray-200 rounded-full overflow-hidden">
-                                      <div className="h-full bg-gray-900" style={{ width: `${Math.max(0, Math.min(100, opp.fit_score ?? 0))}%` }} />
+                                      <div
+                                        className="h-full bg-gray-900"
+                                        style={{
+                                          width: `${Math.max(0, Math.min(100, opp.fit_score ?? 0))}%`,
+                                        }}
+                                      />
                                     </div>
                                   </div>
                                 </td>
                                 <td className={`${tdBase} whitespace-nowrap`}>
-                                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getStatusBadgeClass(opp.status)}`}>
+                                  <span
+                                    className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getStatusBadgeClass(opp.status)}`}
+                                  >
                                     {formatStatus(opp.status)}
                                   </span>
                                 </td>
@@ -1004,6 +1349,35 @@ const Dashboard: React.FC = () => {
                     );
                   })()
                 )}
+                {!isLoading && filteredOpportunities.length > 0 && (
+                  <div
+                    className="px-6 py-3 border-t border-gray-100 flex items-center justify-between"
+                    data-testid="pagination"
+                  >
+                    <span className="text-sm text-gray-500">
+                      Page {listPage} of {totalPages} ({filteredOpportunities.length} items)
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={listPage <= 1}
+                        onClick={() => setListPage((p) => Math.max(1, p - 1))}
+                        className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50"
+                      >
+                        Previous
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="pagination-next"
+                        disabled={listPage >= totalPages}
+                        onClick={() => setListPage((p) => Math.min(totalPages, p + 1))}
+                        className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1013,7 +1387,9 @@ const Dashboard: React.FC = () => {
                 <div className="p-6 border-b border-gray-100">
                   <div className="min-w-0">
                     <div className="flex items-center flex-wrap gap-2 mb-2">
-                      <span className="px-2 py-0.5 rounded bg-gray-100 text-xs font-mono text-gray-600">{selectedOpportunity.external_ref}</span>
+                      <span className="px-2 py-0.5 rounded bg-gray-100 text-xs font-mono text-gray-600">
+                        {selectedOpportunity.external_ref}
+                      </span>
                       <button
                         onClick={() => copyToClipboard(selectedOpportunity.external_ref)}
                         className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white border border-gray-200 text-xs text-gray-700 hover:bg-gray-50"
@@ -1021,15 +1397,23 @@ const Dashboard: React.FC = () => {
                       >
                         <Copy size={14} /> Copy
                       </button>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getStatusBadgeClass(selectedOpportunity.status)}`}>
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getStatusBadgeClass(selectedOpportunity.status)}`}
+                      >
                         {formatStatus(selectedOpportunity.status)}
                       </span>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getSourceBadgeClass(selectedOpportunity.source)}`}>
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getSourceBadgeClass(selectedOpportunity.source)}`}
+                      >
                         {selectedOpportunity.source}
                       </span>
                     </div>
-                    <h2 className="text-lg font-bold text-gray-900 leading-tight truncate">{selectedOpportunity.title}</h2>
-                    <p className="text-sm text-gray-500 mt-1 truncate">{selectedOpportunity.agency}</p>
+                    <h2 className="text-lg font-bold text-gray-900 leading-tight truncate">
+                      {selectedOpportunity.title}
+                    </h2>
+                    <p className="text-sm text-gray-500 mt-1 truncate">
+                      {selectedOpportunity.agency}
+                    </p>
                   </div>
                 </div>
 
@@ -1059,7 +1443,11 @@ const Dashboard: React.FC = () => {
                             className="flex items-center justify-center gap-2 px-3 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-all disabled:opacity-60"
                             title="Score this opportunity using AI (fit, effort, urgency)"
                           >
-                            {isQualifying ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                            {isQualifying ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <Sparkles size={16} />
+                            )}
                             AI Qualify
                           </button>
                         </div>
@@ -1071,7 +1459,11 @@ const Dashboard: React.FC = () => {
                             className="flex items-center justify-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-60"
                             title="Create submission workspace to start building your proposal"
                           >
-                            {isCreatingWorkspace ? <Loader2 size={16} className="animate-spin" /> : <ChevronRight size={16} />}
+                            {isCreatingWorkspace ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <ChevronRight size={16} />
+                            )}
                             Start Proposal
                           </button>
                           <button
@@ -1080,7 +1472,11 @@ const Dashboard: React.FC = () => {
                             className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-all disabled:opacity-60"
                             title="One-click: create workspace + generate full AI proposal automatically"
                           >
-                            {isQuickPursuing ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
+                            {isQuickPursuing ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <Zap size={16} />
+                            )}
                             Quick Pursue
                           </button>
                         </div>
@@ -1089,11 +1485,16 @@ const Dashboard: React.FC = () => {
                           <div>
                             <span className="text-xs text-gray-500 font-medium">Due date</span>
                             <div className="mt-1 flex items-center gap-2">
-                              <p className="font-mono text-sm text-gray-900">{formatDate(selectedOpportunity.due_date)}</p>
+                              <p className="font-mono text-sm text-gray-900">
+                                {formatDate(selectedOpportunity.due_date)}
+                              </p>
                               {typeof dueInDays === 'number' ? (
                                 <span
-                                  className={`text-[10px] px-2 py-0.5 rounded-full border ${dueInDays <= 7 ? 'bg-red-50 text-red-700 border-red-200' : 'bg-gray-50 text-gray-600 border-gray-200'
-                                    }`}
+                                  className={`text-[10px] px-2 py-0.5 rounded-full border ${
+                                    dueInDays <= 7
+                                      ? 'bg-red-50 text-red-700 border-red-200'
+                                      : 'bg-gray-50 text-gray-600 border-gray-200'
+                                  }`}
                                 >
                                   {dueInDays >= 0 ? `${dueInDays}d` : 'past'}
                                 </span>
@@ -1101,13 +1502,16 @@ const Dashboard: React.FC = () => {
                             </div>
                             {meta.dueDateMissing ? (
                               <p className="text-xs text-amber-700 mt-1">
-                                Due date not provided by source. Assumed: <span className="font-mono">{formatDate(meta.dueDateAssumed)}</span>
+                                Due date not provided by source. Assumed:{' '}
+                                <span className="font-mono">{formatDate(meta.dueDateAssumed)}</span>
                               </p>
                             ) : null}
                           </div>
                           <div>
                             <span className="text-xs text-gray-500 font-medium">Posted</span>
-                            <p className="font-mono text-sm text-gray-900 mt-1">{formatDate(selectedOpportunity.posted_date)}</p>
+                            <p className="font-mono text-sm text-gray-900 mt-1">
+                              {formatDate(selectedOpportunity.posted_date)}
+                            </p>
                           </div>
                           <div>
                             <span className="text-xs text-gray-500 font-medium">Category</span>
@@ -1115,23 +1519,33 @@ const Dashboard: React.FC = () => {
                           </div>
                           <div>
                             <span className="text-xs text-gray-500 font-medium">Fit score</span>
-                            <p className="font-mono text-sm text-gray-900 mt-1">{selectedOpportunity.fit_score ?? '---'}</p>
+                            <p className="font-mono text-sm text-gray-900 mt-1">
+                              {selectedOpportunity.fit_score ?? '---'}
+                            </p>
                           </div>
                           <div>
                             <span className="text-xs text-gray-500 font-medium">Effort</span>
-                            <p className="font-mono text-sm text-gray-900 mt-1">{selectedOpportunity.effort_score ?? '---'}</p>
+                            <p className="font-mono text-sm text-gray-900 mt-1">
+                              {selectedOpportunity.effort_score ?? '---'}
+                            </p>
                           </div>
                           <div>
                             <span className="text-xs text-gray-500 font-medium">Urgency</span>
-                            <p className="font-mono text-sm text-gray-900 mt-1">{selectedOpportunity.urgency_score ?? '---'}</p>
+                            <p className="font-mono text-sm text-gray-900 mt-1">
+                              {selectedOpportunity.urgency_score ?? '---'}
+                            </p>
                           </div>
                           <div>
                             <span className="text-xs text-gray-500 font-medium">NAICS</span>
-                            <p className="font-mono text-sm text-gray-900 mt-1">{selectedOpportunity.naics_code ?? '---'}</p>
+                            <p className="font-mono text-sm text-gray-900 mt-1">
+                              {selectedOpportunity.naics_code ?? '---'}
+                            </p>
                           </div>
                           <div>
                             <span className="text-xs text-gray-500 font-medium">Value</span>
-                            <p className="text-sm text-gray-900 mt-1">{formatCurrency(selectedOpportunity.estimated_value ?? null)}</p>
+                            <p className="text-sm text-gray-900 mt-1">
+                              {formatCurrency(selectedOpportunity.estimated_value ?? null)}
+                            </p>
                           </div>
                           <div>
                             <span className="text-xs text-gray-500 font-medium">Notice type</span>
@@ -1139,11 +1553,15 @@ const Dashboard: React.FC = () => {
                           </div>
                           <div>
                             <span className="text-xs text-gray-500 font-medium">PSC</span>
-                            <p className="font-mono text-sm text-gray-900 mt-1">{meta.psc ?? '---'}</p>
+                            <p className="font-mono text-sm text-gray-900 mt-1">
+                              {meta.psc ?? '---'}
+                            </p>
                           </div>
                           <div>
                             <span className="text-xs text-gray-500 font-medium">Set-aside</span>
-                            <p className="text-sm text-gray-900 mt-1">{selectedOpportunity.set_aside ?? '---'}</p>
+                            <p className="text-sm text-gray-900 mt-1">
+                              {selectedOpportunity.set_aside ?? '---'}
+                            </p>
                           </div>
                           <div>
                             <span className="text-xs text-gray-500 font-medium">Company</span>
@@ -1155,13 +1573,19 @@ const Dashboard: React.FC = () => {
                           </div>
                           <div>
                             <span className="text-xs text-gray-500 font-medium">Last updated</span>
-                            <p className="font-mono text-xs text-gray-700 mt-1">{formatDate(selectedOpportunity.updated_at ?? null)}</p>
+                            <p className="font-mono text-xs text-gray-700 mt-1">
+                              {formatDate(selectedOpportunity.updated_at ?? null)}
+                            </p>
                           </div>
                         </div>
 
                         <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Source links</p>
-                          <p className="text-xs text-gray-500 mt-1">Open the original notice and artifacts.</p>
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            Source links
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Open the original notice and artifacts.
+                          </p>
 
                           <div className="mt-3 space-y-2">
                             <a
@@ -1208,8 +1632,12 @@ const Dashboard: React.FC = () => {
                               </a>
                             ))}
 
-                            {!links.samUrl && !links.descriptionUrl && links.resourceLinks.length === 0 ? (
-                              <p className="text-sm text-gray-600">No source links were provided by this connector.</p>
+                            {!links.samUrl &&
+                            !links.descriptionUrl &&
+                            links.resourceLinks.length === 0 ? (
+                              <p className="text-sm text-gray-600">
+                                No source links were provided by this connector.
+                              </p>
                             ) : null}
                           </div>
                         </div>
@@ -1220,12 +1648,17 @@ const Dashboard: React.FC = () => {
                             AI Summary
                           </h3>
                           <div className="mt-2 bg-white border border-gray-200 rounded-lg p-4 text-sm leading-relaxed text-gray-700">
-                            {selectedOpportunity.ai_summary ? selectedOpportunity.ai_summary : 'No AI summary yet. Click "Qualify (AI)".'}
+                            {selectedOpportunity.ai_summary
+                              ? selectedOpportunity.ai_summary
+                              : 'No AI summary yet. Click "Qualify (AI)".'}
                           </div>
-                          {selectedOpportunity.status === 'disqualified' && selectedOpportunity.disqualified_reason ? (
+                          {selectedOpportunity.status === 'disqualified' &&
+                          selectedOpportunity.disqualified_reason ? (
                             <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
                               <div className="font-semibold">Disqualified reason</div>
-                              <div className="mt-1 whitespace-pre-wrap">{selectedOpportunity.disqualified_reason}</div>
+                              <div className="mt-1 whitespace-pre-wrap">
+                                {selectedOpportunity.disqualified_reason}
+                              </div>
                             </div>
                           ) : null}
                         </div>
@@ -1233,7 +1666,9 @@ const Dashboard: React.FC = () => {
                         <div>
                           <h3 className="text-sm font-semibold text-gray-900">Description</h3>
                           <div className="mt-2 bg-white border border-gray-200 rounded-lg p-4 text-sm leading-relaxed text-gray-700 whitespace-pre-wrap">
-                            {selectedOpportunity.description ? selectedOpportunity.description : 'No description available.'}
+                            {selectedOpportunity.description
+                              ? selectedOpportunity.description
+                              : 'No description available.'}
                           </div>
                         </div>
                       </>
@@ -1257,7 +1692,8 @@ const Dashboard: React.FC = () => {
                 <FileText size={64} className="text-gray-300 mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">Select an opportunity</h3>
                 <p className="text-sm text-gray-500 max-w-xs">
-                  Click on any opportunity from the list to view details, scores, and full description
+                  Click on any opportunity from the list to view details, scores, and full
+                  description
                 </p>
               </div>
             )}
@@ -1277,22 +1713,36 @@ const Dashboard: React.FC = () => {
 
                   <div className="flex items-center gap-2 shrink-0">
                     <button
+                      data-testid="filter-button"
                       onClick={handleSync}
-                      disabled={isSyncing || syncRemainingSeconds > 0}
+                      disabled={isSyncing || syncRemainingSeconds > 0 || isLoading}
                       className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-60"
                       title="Fetch latest opportunities from SAM.gov and other sources"
                     >
-                      {isSyncing ? <Loader2 size={16} className="animate-spin" /> : <RotateCw size={16} />}
-                      {syncRemainingSeconds > 0 ? `Sync (${syncRemainingSeconds}s)` : isSyncing ? 'Syncing...' : 'Sync Opportunities'}
+                      {isSyncing ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <RotateCw size={16} />
+                      )}
+                      {syncRemainingSeconds > 0
+                        ? `Sync (${syncRemainingSeconds}s)`
+                        : isSyncing
+                          ? 'Syncing...'
+                          : 'Sync Opportunities'}
                     </button>
 
                     <button
+                      data-testid="retry-button"
                       onClick={loadOpportunities}
                       disabled={isLoading}
                       className="flex items-center gap-2 px-3 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-all disabled:opacity-60"
                       title="Reload the current opportunity list"
                     >
-                      {isLoading ? <Loader2 size={16} className="animate-spin" /> : <RotateCw size={16} />}
+                      {isLoading ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <RotateCw size={16} />
+                      )}
                       Refresh List
                     </button>
 
@@ -1322,25 +1772,36 @@ const Dashboard: React.FC = () => {
 
                 {notice && (
                   <div
-                    className={`mt-4 px-4 py-3 rounded-lg border text-sm ${notice.kind === 'error'
-                      ? 'bg-red-50 border-red-200 text-red-700'
-                      : notice.kind === 'success'
-                        ? 'bg-green-50 border-green-200 text-green-700'
-                        : 'bg-gray-50 border-gray-200 text-gray-700'
-                      }`}
+                    data-testid={notice.kind === 'error' ? 'error-banner' : undefined}
+                    className={`mt-4 px-4 py-3 rounded-lg border text-sm ${
+                      notice.kind === 'error'
+                        ? 'bg-red-50 border-red-200 text-red-700'
+                        : notice.kind === 'success'
+                          ? 'bg-green-50 border-green-200 text-green-700'
+                          : 'bg-gray-50 border-gray-200 text-gray-700'
+                    }`}
                   >
                     <div className="flex items-start gap-2">
-                      {notice.kind === 'error' ? <AlertTriangle size={16} className="mt-0.5" /> : null}
+                      {notice.kind === 'error' ? (
+                        <AlertTriangle size={16} className="mt-0.5" />
+                      ) : null}
                       <div className="min-w-0">{notice.message}</div>
                     </div>
                   </div>
                 )}
               </div>
 
-              <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex flex-wrap gap-3 items-center">
+              <div
+                className="p-4 border-b border-gray-100 bg-gray-50/50 flex flex-wrap gap-3 items-center"
+                data-testid="filters"
+              >
                 <div className="relative flex-1 min-w-[18rem]">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <Search
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                    size={18}
+                  />
                   <input
+                    data-testid="search-input"
                     type="text"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
@@ -1350,6 +1811,7 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 <select
+                  data-testid="filter-status"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as any)}
                   className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
@@ -1363,6 +1825,7 @@ const Dashboard: React.FC = () => {
                 </select>
 
                 <select
+                  data-testid="filter-source"
                   value={sourceFilter}
                   onChange={(e) => setSourceFilter(e.target.value)}
                   className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
@@ -1401,10 +1864,25 @@ const Dashboard: React.FC = () => {
                   ))}
                 </select>
 
+                <input
+                  type="number"
+                  data-testid="filter-min-fit-score"
+                  min={0}
+                  max={100}
+                  placeholder="Min fit"
+                  value={minFitScore === 'any' ? '' : minFitScore}
+                  onChange={(e) =>
+                    setMinFitScore(e.target.value === '' ? 'any' : Number(e.target.value))
+                  }
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm w-20"
+                />
                 <select
                   value={minFitScore}
-                  onChange={(e) => setMinFitScore(e.target.value === 'any' ? 'any' : Number(e.target.value))}
-                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
+                  onChange={(e) =>
+                    setMinFitScore(e.target.value === 'any' ? 'any' : Number(e.target.value))
+                  }
+                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm sr-only"
+                  aria-hidden
                 >
                   <option value="any">Any fit</option>
                   <option value="70">70+</option>
@@ -1413,6 +1891,7 @@ const Dashboard: React.FC = () => {
                 </select>
 
                 <select
+                  data-testid="sort-select"
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as any)}
                   className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
@@ -1421,6 +1900,14 @@ const Dashboard: React.FC = () => {
                   <option value="fit">Sort: Fit</option>
                   <option value="posted">Sort: Posted</option>
                 </select>
+
+                <button
+                  type="button"
+                  data-testid="apply-filters"
+                  className="px-3 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800"
+                >
+                  Apply
+                </button>
 
                 <input
                   value={naicsPrefix}
@@ -1458,7 +1945,11 @@ const Dashboard: React.FC = () => {
                 />
 
                 <label className="flex items-center gap-2 text-sm text-gray-700 px-2">
-                  <input type="checkbox" checked={dueSoonOnly} onChange={(e) => setDueSoonOnly(e.target.checked)} />
+                  <input
+                    type="checkbox"
+                    checked={dueSoonOnly}
+                    onChange={(e) => setDueSoonOnly(e.target.checked)}
+                  />
                   Due &lt; 7d
                 </label>
 
@@ -1467,13 +1958,22 @@ const Dashboard: React.FC = () => {
                     Columns
                   </summary>
                   <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg p-3 z-20">
-                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Visible columns</div>
+                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                      Visible columns
+                    </div>
                     {Object.keys(COLUMN_LABELS).map((key) => {
                       const k = key as ColumnKey;
                       return (
-                        <label key={k} className="flex items-center justify-between gap-3 py-1 text-sm text-gray-700">
+                        <label
+                          key={k}
+                          className="flex items-center justify-between gap-3 py-1 text-sm text-gray-700"
+                        >
                           <span>{COLUMN_LABELS[k]}</span>
-                          <input type="checkbox" checked={!!columns[k]} onChange={() => toggleColumn(k)} />
+                          <input
+                            type="checkbox"
+                            checked={!!columns[k]}
+                            onChange={() => toggleColumn(k)}
+                          />
                         </label>
                       );
                     })}
@@ -1514,18 +2014,25 @@ const Dashboard: React.FC = () => {
                 )}
 
                 {isLoading ? (
-                  <div className="px-6 py-10 text-gray-500 flex items-center">
+                  <div
+                    className="px-6 py-10 text-gray-500 flex items-center"
+                    data-testid="loading-spinner"
+                  >
                     <Loader2 size={18} className="animate-spin mr-2" /> Loading opportunities...
                   </div>
                 ) : filteredOpportunities.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+                  <div
+                    className="flex flex-col items-center justify-center py-16 px-6 text-center"
+                    data-testid="empty-state"
+                  >
                     <Search size={64} className="text-gray-300 mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No opportunities found</h3>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      No opportunities found
+                    </h3>
                     <p className="text-sm text-gray-500 mb-6 max-w-md">
                       {opportunities.length === 0
-                        ? "Click \"Sync Opportunities\" to fetch the latest from SAM.gov and other sources"
-                        : "Try adjusting your filters or search terms"
-                      }
+                        ? 'Click "Sync Opportunities" to fetch the latest from SAM.gov and other sources'
+                        : 'Try adjusting your filters or search terms'}
                     </p>
                     {opportunities.length === 0 && (
                       <button
@@ -1533,8 +2040,16 @@ const Dashboard: React.FC = () => {
                         disabled={isSyncing || syncRemainingSeconds > 0}
                         className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-all disabled:opacity-60"
                       >
-                        {isSyncing ? <Loader2 size={16} className="animate-spin" /> : <RotateCw size={16} />}
-                        {syncRemainingSeconds > 0 ? `Wait ${syncRemainingSeconds}s` : isSyncing ? 'Syncing...' : 'Sync Opportunities'}
+                        {isSyncing ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <RotateCw size={16} />
+                        )}
+                        {syncRemainingSeconds > 0
+                          ? `Wait ${syncRemainingSeconds}s`
+                          : isSyncing
+                            ? 'Syncing...'
+                            : 'Sync Opportunities'}
                       </button>
                     )}
                   </div>
@@ -1545,28 +2060,73 @@ const Dashboard: React.FC = () => {
                         <th className="px-2 py-3 w-10">
                           <input
                             type="checkbox"
-                            checked={filteredOpportunities.length > 0 && selectedIds.size === filteredOpportunities.length}
+                            checked={
+                              filteredOpportunities.length > 0 &&
+                              selectedIds.size === filteredOpportunities.length
+                            }
                             onChange={toggleSelectAllFiltered}
                           />
                         </th>
-                        <th className="px-3 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Ref</th>
-                        <th className="px-2 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-10">Open</th>
-                        <th className="px-3 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Title</th>
-                        <th className="px-3 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Agency</th>
-                        {columns.source && <th className="px-3 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Source</th>}
-                        {columns.category && <th className="px-3 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Category</th>}
-                        <th className="px-3 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Due</th>
-                        {columns.naics && <th className="px-2 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">NAICS</th>}
-                        {columns.set_aside && <th className="px-2 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Set-aside</th>}
-                        {columns.notice_type && <th className="px-2 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Type</th>}
-                        {columns.psc && <th className="px-2 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">PSC</th>}
-                        {columns.value && <th className="px-2 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Value</th>}
-                        <th className="px-2 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Fit</th>
-                        <th className="px-2 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="px-3 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                          Ref
+                        </th>
+                        <th className="px-2 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-10">
+                          Open
+                        </th>
+                        <th className="px-3 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                          Title
+                        </th>
+                        <th className="px-3 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                          Agency
+                        </th>
+                        {columns.source && (
+                          <th className="px-3 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                            Source
+                          </th>
+                        )}
+                        {columns.category && (
+                          <th className="px-3 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                            Category
+                          </th>
+                        )}
+                        <th className="px-3 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                          Due
+                        </th>
+                        {columns.naics && (
+                          <th className="px-2 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                            NAICS
+                          </th>
+                        )}
+                        {columns.set_aside && (
+                          <th className="px-2 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                            Set-aside
+                          </th>
+                        )}
+                        {columns.notice_type && (
+                          <th className="px-2 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                            Type
+                          </th>
+                        )}
+                        {columns.psc && (
+                          <th className="px-2 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                            PSC
+                          </th>
+                        )}
+                        {columns.value && (
+                          <th className="px-2 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                            Value
+                          </th>
+                        )}
+                        <th className="px-2 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                          Fit
+                        </th>
+                        <th className="px-2 py-3 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                          Status
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {filteredOpportunities.map((opp) => {
+                      {paginatedOpportunities.map((opp) => {
                         const meta = extractContractMetadata(opp);
                         const category = getOpportunityCategory(opp);
                         const links = extractLinks(opp);
@@ -1575,6 +2135,9 @@ const Dashboard: React.FC = () => {
                         return (
                           <tr
                             key={opp.id}
+                            role="article"
+                            data-testid="opportunity-card"
+                            data-id={opp.id}
                             onClick={() => setSelectedId(opp.id)}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter' || e.key === ' ') {
@@ -1586,9 +2149,15 @@ const Dashboard: React.FC = () => {
                             className={`cursor-pointer hover:bg-gray-50 transition-colors ${selectedId === opp.id ? 'bg-gray-50 border-l-4 border-l-gray-900' : 'border-l-4 border-l-transparent'}`}
                           >
                             <td className="px-2 py-4" onClick={(e) => e.stopPropagation()}>
-                              <input type="checkbox" checked={selectedIds.has(opp.id)} onChange={() => toggleSelected(opp.id)} />
+                              <input
+                                type="checkbox"
+                                checked={selectedIds.has(opp.id)}
+                                onChange={() => toggleSelected(opp.id)}
+                              />
                             </td>
-                            <td className="px-3 py-4 font-mono text-xs text-gray-600 whitespace-nowrap">{opp.external_ref}</td>
+                            <td className="px-3 py-4 font-mono text-xs text-gray-600 whitespace-nowrap">
+                              {opp.external_ref}
+                            </td>
                             <td className="px-2 py-4" onClick={(e) => e.stopPropagation()}>
                               <button
                                 onClick={() => openExternal(getSamNoticeUrl(opp))}
@@ -1598,16 +2167,28 @@ const Dashboard: React.FC = () => {
                                 <ExternalLink size={16} />
                               </button>
                             </td>
-                            <td className="px-3 py-4 font-medium text-gray-900 truncate max-w-[260px]">{opp.title}</td>
-                            <td className="px-3 py-4 text-sm text-gray-600 truncate max-w-[200px]">{opp.agency}</td>
+                            <td
+                              className="px-3 py-4 font-medium text-gray-900 truncate max-w-[260px]"
+                              data-testid="opportunity-title"
+                              aria-label={opp.title}
+                            >
+                              {opp.title}
+                            </td>
+                            <td className="px-3 py-4 text-sm text-gray-600 truncate max-w-[200px]">
+                              {opp.agency}
+                            </td>
                             {columns.source && (
                               <td className="px-3 py-4 whitespace-nowrap">
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getSourceBadgeClass(opp.source)}`}>
+                                <span
+                                  className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getSourceBadgeClass(opp.source)}`}
+                                >
                                   {opp.source}
                                 </span>
                               </td>
                             )}
-                            {columns.category && <td className="px-3 py-4 text-sm text-gray-700">{category}</td>}
+                            {columns.category && (
+                              <td className="px-3 py-4 text-sm text-gray-700">{category}</td>
+                            )}
                             <td className="px-3 py-4 font-mono text-xs text-gray-600 whitespace-nowrap">
                               <div className="flex items-center gap-2">
                                 <span>{formatDate(opp.due_date)}</span>
@@ -1618,21 +2199,50 @@ const Dashboard: React.FC = () => {
                                 ) : null}
                               </div>
                             </td>
-                            {columns.naics && <td className="px-2 py-4 font-mono text-xs text-gray-600 whitespace-nowrap min-w-[70px]">{opp.naics_code ?? '---'}</td>}
-                            {columns.set_aside && <td className="px-2 py-4 text-sm text-gray-600">{opp.set_aside ?? '---'}</td>}
-                            {columns.notice_type && <td className="px-2 py-4 text-sm text-gray-600">{meta.noticeType ?? '---'}</td>}
-                            {columns.psc && <td className="px-2 py-4 font-mono text-xs text-gray-600">{meta.psc ?? '---'}</td>}
-                            {columns.value && <td className="px-2 py-4 text-sm text-gray-700 whitespace-nowrap min-w-[80px]">{formatCurrency(opp.estimated_value ?? null)}</td>}
+                            {columns.naics && (
+                              <td className="px-2 py-4 font-mono text-xs text-gray-600 whitespace-nowrap min-w-[70px]">
+                                {opp.naics_code ?? '---'}
+                              </td>
+                            )}
+                            {columns.set_aside && (
+                              <td className="px-2 py-4 text-sm text-gray-600">
+                                {opp.set_aside ?? '---'}
+                              </td>
+                            )}
+                            {columns.notice_type && (
+                              <td className="px-2 py-4 text-sm text-gray-600">
+                                {meta.noticeType ?? '---'}
+                              </td>
+                            )}
+                            {columns.psc && (
+                              <td className="px-2 py-4 font-mono text-xs text-gray-600">
+                                {meta.psc ?? '---'}
+                              </td>
+                            )}
+                            {columns.value && (
+                              <td className="px-2 py-4 text-sm text-gray-700 whitespace-nowrap min-w-[80px]">
+                                {formatCurrency(opp.estimated_value ?? null)}
+                              </td>
+                            )}
                             <td className="px-2 py-4 whitespace-nowrap">
                               <div className="flex items-center gap-2">
-                                <span className="font-mono font-bold text-gray-900">{opp.fit_score ?? '---'}</span>
+                                <span className="font-mono font-bold text-gray-900">
+                                  {opp.fit_score ?? '---'}
+                                </span>
                                 <div className="h-1.5 w-16 bg-gray-200 rounded-full overflow-hidden">
-                                  <div className="h-full bg-gray-900" style={{ width: `${Math.max(0, Math.min(100, opp.fit_score ?? 0))}%` }} />
+                                  <div
+                                    className="h-full bg-gray-900"
+                                    style={{
+                                      width: `${Math.max(0, Math.min(100, opp.fit_score ?? 0))}%`,
+                                    }}
+                                  />
                                 </div>
                               </div>
                             </td>
                             <td className="px-2 py-4 whitespace-nowrap">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getStatusBadgeClass(opp.status)}`}>
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getStatusBadgeClass(opp.status)}`}
+                              >
                                 {formatStatus(opp.status)}
                               </span>
                             </td>
@@ -1641,6 +2251,35 @@ const Dashboard: React.FC = () => {
                       })}
                     </tbody>
                   </table>
+                )}
+                {!isLoading && filteredOpportunities.length > 0 && (
+                  <div
+                    className="px-6 py-3 border-t border-gray-100 flex items-center justify-between"
+                    data-testid="pagination"
+                  >
+                    <span className="text-sm text-gray-500">
+                      Page {listPage} of {totalPages} ({filteredOpportunities.length} items)
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={listPage <= 1}
+                        onClick={() => setListPage((p) => Math.max(1, p - 1))}
+                        className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50"
+                      >
+                        Previous
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="pagination-next"
+                        disabled={listPage >= totalPages}
+                        onClick={() => setListPage((p) => Math.min(totalPages, p + 1))}
+                        className="px-3 py-1 text-sm border rounded-lg disabled:opacity-50"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -1661,7 +2300,9 @@ const Dashboard: React.FC = () => {
                   <div className="p-4 border-b border-gray-100 flex items-center justify-between">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center flex-wrap gap-2 mb-2">
-                        <span className="px-2 py-0.5 rounded bg-gray-100 text-xs font-mono text-gray-600">{selectedOpportunity.external_ref}</span>
+                        <span className="px-2 py-0.5 rounded bg-gray-100 text-xs font-mono text-gray-600">
+                          {selectedOpportunity.external_ref}
+                        </span>
                         <button
                           onClick={() => copyToClipboard(selectedOpportunity.external_ref)}
                           className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white border border-gray-200 text-xs text-gray-700 hover:bg-gray-50"
@@ -1669,15 +2310,23 @@ const Dashboard: React.FC = () => {
                         >
                           <Copy size={14} /> Copy
                         </button>
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getStatusBadgeClass(selectedOpportunity.status)}`}>
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getStatusBadgeClass(selectedOpportunity.status)}`}
+                        >
                           {formatStatus(selectedOpportunity.status)}
                         </span>
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getSourceBadgeClass(selectedOpportunity.source)}`}>
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getSourceBadgeClass(selectedOpportunity.source)}`}
+                        >
                           {selectedOpportunity.source}
                         </span>
                       </div>
-                      <h2 className="text-lg font-bold text-gray-900 leading-tight line-clamp-2">{selectedOpportunity.title}</h2>
-                      <p className="text-sm text-gray-500 mt-1 truncate">{selectedOpportunity.agency}</p>
+                      <h2 className="text-lg font-bold text-gray-900 leading-tight line-clamp-2">
+                        {selectedOpportunity.title}
+                      </h2>
+                      <p className="text-sm text-gray-500 mt-1 truncate">
+                        {selectedOpportunity.agency}
+                      </p>
                     </div>
                     <button
                       onClick={() => setSelectedId(null)}
@@ -1712,7 +2361,11 @@ const Dashboard: React.FC = () => {
                               disabled={isQualifying}
                               className="flex items-center justify-center gap-2 px-3 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-all disabled:opacity-60"
                             >
-                              {isQualifying ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                              {isQualifying ? (
+                                <Loader2 size={16} className="animate-spin" />
+                              ) : (
+                                <Sparkles size={16} />
+                              )}
                               Qualify (AI)
                             </button>
                           </div>
@@ -1723,7 +2376,11 @@ const Dashboard: React.FC = () => {
                               disabled={isCreatingWorkspace || isQuickPursuing}
                               className="flex items-center justify-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-60"
                             >
-                              {isCreatingWorkspace ? <Loader2 size={16} className="animate-spin" /> : <ChevronRight size={16} />}
+                              {isCreatingWorkspace ? (
+                                <Loader2 size={16} className="animate-spin" />
+                              ) : (
+                                <ChevronRight size={16} />
+                              )}
                               Start Proposal
                             </button>
                             <button
@@ -1732,7 +2389,11 @@ const Dashboard: React.FC = () => {
                               className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-all disabled:opacity-60"
                               title="One-click: create workspace + generate full AI proposal"
                             >
-                              {isQuickPursuing ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
+                              {isQuickPursuing ? (
+                                <Loader2 size={16} className="animate-spin" />
+                              ) : (
+                                <Zap size={16} />
+                              )}
                               Quick Pursue
                             </button>
                           </div>
@@ -1741,11 +2402,16 @@ const Dashboard: React.FC = () => {
                             <div>
                               <span className="text-xs text-gray-500 font-medium">Due date</span>
                               <div className="mt-1 flex items-center gap-2">
-                                <p className="font-mono text-sm text-gray-900">{formatDate(selectedOpportunity.due_date)}</p>
+                                <p className="font-mono text-sm text-gray-900">
+                                  {formatDate(selectedOpportunity.due_date)}
+                                </p>
                                 {typeof dueInDays === 'number' ? (
                                   <span
-                                    className={`text-[10px] px-2 py-0.5 rounded-full border ${dueInDays <= 7 ? 'bg-red-50 text-red-700 border-red-200' : 'bg-gray-50 text-gray-600 border-gray-200'
-                                      }`}
+                                    className={`text-[10px] px-2 py-0.5 rounded-full border ${
+                                      dueInDays <= 7
+                                        ? 'bg-red-50 text-red-700 border-red-200'
+                                        : 'bg-gray-50 text-gray-600 border-gray-200'
+                                    }`}
                                   >
                                     {dueInDays >= 0 ? `${dueInDays}d` : 'past'}
                                   </span>
@@ -1753,13 +2419,18 @@ const Dashboard: React.FC = () => {
                               </div>
                               {meta.dueDateMissing ? (
                                 <p className="text-xs text-amber-700 mt-1">
-                                  Due date not provided by source. Assumed: <span className="font-mono">{formatDate(meta.dueDateAssumed)}</span>
+                                  Due date not provided by source. Assumed:{' '}
+                                  <span className="font-mono">
+                                    {formatDate(meta.dueDateAssumed)}
+                                  </span>
                                 </p>
                               ) : null}
                             </div>
                             <div>
                               <span className="text-xs text-gray-500 font-medium">Posted</span>
-                              <p className="font-mono text-sm text-gray-900 mt-1">{formatDate(selectedOpportunity.posted_date)}</p>
+                              <p className="font-mono text-sm text-gray-900 mt-1">
+                                {formatDate(selectedOpportunity.posted_date)}
+                              </p>
                             </div>
                             <div>
                               <span className="text-xs text-gray-500 font-medium">Category</span>
@@ -1767,35 +2438,51 @@ const Dashboard: React.FC = () => {
                             </div>
                             <div>
                               <span className="text-xs text-gray-500 font-medium">Fit score</span>
-                              <p className="font-mono text-sm text-gray-900 mt-1">{selectedOpportunity.fit_score ?? '---'}</p>
+                              <p className="font-mono text-sm text-gray-900 mt-1">
+                                {selectedOpportunity.fit_score ?? '---'}
+                              </p>
                             </div>
                             <div>
                               <span className="text-xs text-gray-500 font-medium">Effort</span>
-                              <p className="font-mono text-sm text-gray-900 mt-1">{selectedOpportunity.effort_score ?? '---'}</p>
+                              <p className="font-mono text-sm text-gray-900 mt-1">
+                                {selectedOpportunity.effort_score ?? '---'}
+                              </p>
                             </div>
                             <div>
                               <span className="text-xs text-gray-500 font-medium">Urgency</span>
-                              <p className="font-mono text-sm text-gray-900 mt-1">{selectedOpportunity.urgency_score ?? '---'}</p>
+                              <p className="font-mono text-sm text-gray-900 mt-1">
+                                {selectedOpportunity.urgency_score ?? '---'}
+                              </p>
                             </div>
                             <div>
                               <span className="text-xs text-gray-500 font-medium">NAICS</span>
-                              <p className="font-mono text-sm text-gray-900 mt-1">{selectedOpportunity.naics_code ?? '---'}</p>
+                              <p className="font-mono text-sm text-gray-900 mt-1">
+                                {selectedOpportunity.naics_code ?? '---'}
+                              </p>
                             </div>
                             <div>
                               <span className="text-xs text-gray-500 font-medium">Value</span>
-                              <p className="text-sm text-gray-900 mt-1">{formatCurrency(selectedOpportunity.estimated_value ?? null)}</p>
+                              <p className="text-sm text-gray-900 mt-1">
+                                {formatCurrency(selectedOpportunity.estimated_value ?? null)}
+                              </p>
                             </div>
                             <div>
                               <span className="text-xs text-gray-500 font-medium">Notice type</span>
-                              <p className="text-sm text-gray-900 mt-1">{meta.noticeType ?? '---'}</p>
+                              <p className="text-sm text-gray-900 mt-1">
+                                {meta.noticeType ?? '---'}
+                              </p>
                             </div>
                             <div>
                               <span className="text-xs text-gray-500 font-medium">PSC</span>
-                              <p className="font-mono text-sm text-gray-900 mt-1">{meta.psc ?? '---'}</p>
+                              <p className="font-mono text-sm text-gray-900 mt-1">
+                                {meta.psc ?? '---'}
+                              </p>
                             </div>
                             <div>
                               <span className="text-xs text-gray-500 font-medium">Set-aside</span>
-                              <p className="text-sm text-gray-900 mt-1">{selectedOpportunity.set_aside ?? '---'}</p>
+                              <p className="text-sm text-gray-900 mt-1">
+                                {selectedOpportunity.set_aside ?? '---'}
+                              </p>
                             </div>
                             <div>
                               <span className="text-xs text-gray-500 font-medium">Company</span>
@@ -1806,14 +2493,22 @@ const Dashboard: React.FC = () => {
                               <p className="text-sm text-gray-900 mt-1">{meta.place ?? '---'}</p>
                             </div>
                             <div>
-                              <span className="text-xs text-gray-500 font-medium">Last updated</span>
-                              <p className="font-mono text-xs text-gray-700 mt-1">{formatDate(selectedOpportunity.updated_at ?? null)}</p>
+                              <span className="text-xs text-gray-500 font-medium">
+                                Last updated
+                              </span>
+                              <p className="font-mono text-xs text-gray-700 mt-1">
+                                {formatDate(selectedOpportunity.updated_at ?? null)}
+                              </p>
                             </div>
                           </div>
 
                           <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Source links</p>
-                            <p className="text-xs text-gray-500 mt-1">Open the original notice and artifacts.</p>
+                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                              Source links
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Open the original notice and artifacts.
+                            </p>
 
                             <div className="mt-3 space-y-2">
                               <a
@@ -1860,8 +2555,12 @@ const Dashboard: React.FC = () => {
                                 </a>
                               ))}
 
-                              {!links.samUrl && !links.descriptionUrl && links.resourceLinks.length === 0 ? (
-                                <p className="text-sm text-gray-600">No source links were provided by this connector.</p>
+                              {!links.samUrl &&
+                              !links.descriptionUrl &&
+                              links.resourceLinks.length === 0 ? (
+                                <p className="text-sm text-gray-600">
+                                  No source links were provided by this connector.
+                                </p>
                               ) : null}
                             </div>
                           </div>
@@ -1872,12 +2571,17 @@ const Dashboard: React.FC = () => {
                               AI Summary
                             </h3>
                             <div className="mt-2 bg-white border border-gray-200 rounded-lg p-4 text-sm leading-relaxed text-gray-700">
-                              {selectedOpportunity.ai_summary ? selectedOpportunity.ai_summary : 'No AI summary yet. Click "Qualify (AI)".'}
+                              {selectedOpportunity.ai_summary
+                                ? selectedOpportunity.ai_summary
+                                : 'No AI summary yet. Click "Qualify (AI)".'}
                             </div>
-                            {selectedOpportunity.status === 'disqualified' && selectedOpportunity.disqualified_reason ? (
+                            {selectedOpportunity.status === 'disqualified' &&
+                            selectedOpportunity.disqualified_reason ? (
                               <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
                                 <div className="font-semibold">Disqualified reason</div>
-                                <div className="mt-1 whitespace-pre-wrap">{selectedOpportunity.disqualified_reason}</div>
+                                <div className="mt-1 whitespace-pre-wrap">
+                                  {selectedOpportunity.disqualified_reason}
+                                </div>
                               </div>
                             ) : null}
                           </div>
@@ -1885,7 +2589,9 @@ const Dashboard: React.FC = () => {
                           <div>
                             <h3 className="text-sm font-semibold text-gray-900">Description</h3>
                             <div className="mt-2 bg-white border border-gray-200 rounded-lg p-4 text-sm leading-relaxed text-gray-700 whitespace-pre-wrap">
-                              {selectedOpportunity.description ? selectedOpportunity.description : 'No description available.'}
+                              {selectedOpportunity.description
+                                ? selectedOpportunity.description
+                                : 'No description available.'}
                             </div>
                           </div>
                         </>

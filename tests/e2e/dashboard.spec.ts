@@ -8,7 +8,9 @@ test.describe('Dashboard', () => {
 
   test('displays opportunity pipeline metrics', async ({ page }) => {
     // Dashboard should show metric cards
-    await expect(page.locator('text=/total|pipeline|opportunities/i').first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('text=/total|pipeline|opportunities/i').first()).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   test('search filters opportunities', async ({ page }) => {
@@ -23,7 +25,9 @@ test.describe('Dashboard', () => {
 
   test('status filter buttons are clickable', async ({ page }) => {
     // Click on a status filter (e.g., "Qualified", "New")
-    const filterButtons = page.locator('button').filter({ hasText: /new|qualified|review|submitted/i });
+    const filterButtons = page
+      .locator('button')
+      .filter({ hasText: /new|qualified|review|submitted/i });
     const count = await filterButtons.count();
     if (count > 0) {
       await filterButtons.first().click();

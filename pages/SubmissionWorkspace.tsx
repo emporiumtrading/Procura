@@ -1,10 +1,25 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
-  FileText, CheckCircle, Circle, Upload, Send,
-  ChevronRight, AlertTriangle, Sparkles,
-  Download, Eye, Loader2, Shield, DollarSign,
-  XCircle, ArrowRight, Wand2, RefreshCw, Copy, CheckCheck
+  FileText,
+  CheckCircle,
+  Circle,
+  Upload,
+  Send,
+  ChevronRight,
+  AlertTriangle,
+  Sparkles,
+  Download,
+  Eye,
+  Loader2,
+  Shield,
+  DollarSign,
+  XCircle,
+  ArrowRight,
+  Wand2,
+  RefreshCw,
+  Copy,
+  CheckCheck,
 } from 'lucide-react';
 import { api } from '../lib/api';
 
@@ -67,7 +82,7 @@ const PROPOSAL_SECTIONS = [
   { key: 'past_performance', label: 'Past Performance' },
 ] as const;
 
-type SectionKey = typeof PROPOSAL_SECTIONS[number]['key'];
+type SectionKey = (typeof PROPOSAL_SECTIONS)[number]['key'];
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
@@ -183,46 +198,51 @@ const SubmissionWorkspace: React.FC = () => {
     setIsSubmitting(false);
   };
 
-  const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files || files.length === 0 || !submissionId) return;
+  const handleFileUpload = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const files = event.target.files;
+      if (!files || files.length === 0 || !submissionId) return;
 
-    setIsUploading(true);
-    setError(null);
+      setIsUploading(true);
+      setError(null);
 
-    try {
-      const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8001/api';
-      for (let i = 0; i < files.length; i++) {
-        const formData = new FormData();
-        formData.append('file', files[i]);
+      try {
+        const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8001/api';
+        for (let i = 0; i < files.length; i++) {
+          const formData = new FormData();
+          formData.append('file', files[i]);
 
-        const headers: Record<string, string> = {};
-        const token = api.getToken();
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
+          const headers: Record<string, string> = {};
+          const token = api.getToken();
+          if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+          }
+
+          const response = await fetch(`${apiBase}/submissions/${submissionId}/files`, {
+            method: 'POST',
+            headers,
+            body: formData,
+          });
+
+          if (!response.ok) {
+            const errData = await response.json().catch(() => null);
+            throw new Error(
+              errData?.detail || `Upload failed for ${files[i].name} (status ${response.status})`
+            );
+          }
         }
-
-        const response = await fetch(`${apiBase}/submissions/${submissionId}/files`, {
-          method: 'POST',
-          headers,
-          body: formData,
-        });
-
-        if (!response.ok) {
-          const errData = await response.json().catch(() => null);
-          throw new Error(errData?.detail || `Upload failed for ${files[i].name} (status ${response.status})`);
+        await loadSubmission();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'File upload failed');
+      } finally {
+        setIsUploading(false);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
         }
       }
-      await loadSubmission();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'File upload failed');
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    }
-  }, [submissionId]);
+    },
+    [submissionId]
+  );
 
   // ── Compliance check ───────────────────────────────────────────────────────
 
@@ -252,31 +272,34 @@ const SubmissionWorkspace: React.FC = () => {
 
   // ── Proposal generation ────────────────────────────────────────────────────
 
-  const handleGenerateSection = useCallback(async (sectionKey: string) => {
-    if (!submissionId) return;
-    setGeneratingSection(sectionKey);
-    setError(null);
+  const handleGenerateSection = useCallback(
+    async (sectionKey: string) => {
+      if (!submissionId) return;
+      setGeneratingSection(sectionKey);
+      setError(null);
 
-    try {
-      const response = await api.generateProposalSection(submissionId, sectionKey);
-      if (response.error) {
-        setError(response.error);
-        return;
+      try {
+        const response = await api.generateProposalSection(submissionId, sectionKey);
+        if (response.error) {
+          setError(response.error);
+          return;
+        }
+        if (response.data) {
+          const { content } = response.data;
+          setProposalSections((prev) => ({
+            ...prev,
+            [sectionKey]: { content, status: 'generated' },
+          }));
+          setEditedContent((prev) => ({ ...prev, [sectionKey]: content }));
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Generation failed');
+      } finally {
+        setGeneratingSection(null);
       }
-      if (response.data) {
-        const { content } = response.data;
-        setProposalSections(prev => ({
-          ...prev,
-          [sectionKey]: { content, status: 'generated' },
-        }));
-        setEditedContent(prev => ({ ...prev, [sectionKey]: content }));
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Generation failed');
-    } finally {
-      setGeneratingSection(null);
-    }
-  }, [submissionId]);
+    },
+    [submissionId]
+  );
 
   const handleGenerateAll = useCallback(async () => {
     if (!submissionId) return;
@@ -290,7 +313,7 @@ const SubmissionWorkspace: React.FC = () => {
         return;
       }
       if (response.data?.sections) {
-        setProposalSections(response.data.sections);
+        setProposalSections(response.data.sections as ProposalSections);
         const edits: Record<string, string> = {};
         Object.entries(response.data.sections).forEach(([k, v]) => {
           edits[k] = v.content || '';
@@ -304,18 +327,26 @@ const SubmissionWorkspace: React.FC = () => {
     }
   }, [submissionId]);
 
-  const handleCopySection = useCallback(async (sectionKey: string) => {
-    const content = editedContent[sectionKey] || proposalSections[sectionKey]?.content || '';
-    await navigator.clipboard.writeText(content);
-    setCopiedSection(sectionKey);
-    setTimeout(() => setCopiedSection(null), 2000);
-  }, [editedContent, proposalSections]);
+  const handleCopySection = useCallback(
+    async (sectionKey: string) => {
+      const content = editedContent[sectionKey] || proposalSections[sectionKey]?.content || '';
+      await navigator.clipboard.writeText(content);
+      setCopiedSection(sectionKey);
+      setTimeout(() => setCopiedSection(null), 2000);
+    },
+    [editedContent, proposalSections]
+  );
 
   // ── Approval workflow ──────────────────────────────────────────────────────
 
   type ApprovalStepStatus = 'pending' | 'approved' | 'rejected' | 'locked';
 
-  const getApprovalSteps = useCallback((): { label: string; stepName: string; icon: React.ReactNode; status: ApprovalStepStatus }[] => {
+  const getApprovalSteps = useCallback((): {
+    label: string;
+    stepName: string;
+    icon: React.ReactNode;
+    status: ApprovalStepStatus;
+  }[] => {
     const approvalStatus = submission?.approval_status || 'pending';
     const isRejected = approvalStatus === 'rejected';
 
@@ -338,42 +369,56 @@ const SubmissionWorkspace: React.FC = () => {
 
     return [
       { label: 'Legal Review', stepName: 'legal', icon: <Shield size={16} />, status: legalStatus },
-      { label: 'Finance Review', stepName: 'finance', icon: <DollarSign size={16} />, status: financeStatus },
+      {
+        label: 'Finance Review',
+        stepName: 'finance',
+        icon: <DollarSign size={16} />,
+        status: financeStatus,
+      },
     ];
   }, [submission?.approval_status]);
 
-  const handleApproveStep = useCallback(async (stepName: string) => {
-    if (!submissionId) return;
-    setApprovingStep(stepName);
-    setError(null);
-    try {
-      const response = await api.approveSubmission(submissionId, stepName);
-      if (response.error) setError(response.error);
-      await loadSubmission();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Approval failed');
-    } finally {
-      setApprovingStep(null);
-    }
-  }, [submissionId]);
+  const handleApproveStep = useCallback(
+    async (stepName: string) => {
+      if (!submissionId) return;
+      setApprovingStep(stepName);
+      setError(null);
+      try {
+        const response = await api.approveSubmission(submissionId, stepName);
+        if (response.error) setError(response.error);
+        await loadSubmission();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Approval failed');
+      } finally {
+        setApprovingStep(null);
+      }
+    },
+    [submissionId]
+  );
 
-  const handleRejectStep = useCallback(async (stepName: string) => {
-    if (!submissionId) return;
-    const reason = window.prompt(`Reason for rejecting ${stepName.replace(/_/g, ' ')}:`);
-    if (reason === null) return;
-    if (!reason.trim()) { setError('A rejection reason is required.'); return; }
-    setApprovingStep(stepName);
-    setError(null);
-    try {
-      const response = await api.rejectSubmission(submissionId, reason.trim());
-      if (response.error) setError(response.error);
-      await loadSubmission();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Rejection failed');
-    } finally {
-      setApprovingStep(null);
-    }
-  }, [submissionId]);
+  const handleRejectStep = useCallback(
+    async (stepName: string) => {
+      if (!submissionId) return;
+      const reason = window.prompt(`Reason for rejecting ${stepName.replace(/_/g, ' ')}:`);
+      if (reason === null) return;
+      if (!reason.trim()) {
+        setError('A rejection reason is required.');
+        return;
+      }
+      setApprovingStep(stepName);
+      setError(null);
+      try {
+        const response = await api.rejectSubmission(submissionId, reason.trim());
+        if (response.error) setError(response.error);
+        await loadSubmission();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Rejection failed');
+      } finally {
+        setApprovingStep(null);
+      }
+    },
+    [submissionId]
+  );
 
   // ── Badge helpers ──────────────────────────────────────────────────────────
 
@@ -388,7 +433,9 @@ const SubmissionWorkspace: React.FC = () => {
     };
     const entry = map[status] || { bg: 'bg-gray-100', text: 'text-gray-700', label: status };
     return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${entry.bg} ${entry.text}`}>
+      <span
+        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${entry.bg} ${entry.text}`}
+      >
         {entry.label}
       </span>
     );
@@ -402,9 +449,15 @@ const SubmissionWorkspace: React.FC = () => {
       complete: { bg: 'bg-green-100', text: 'text-green-700', label: 'Fully Approved' },
       rejected: { bg: 'bg-red-100', text: 'text-red-700', label: 'Rejected' },
     };
-    const entry = map[approvalStatus] || { bg: 'bg-gray-100', text: 'text-gray-700', label: approvalStatus };
+    const entry = map[approvalStatus] || {
+      bg: 'bg-gray-100',
+      text: 'text-gray-700',
+      label: approvalStatus,
+    };
     return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${entry.bg} ${entry.text}`}>
+      <span
+        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${entry.bg} ${entry.text}`}
+      >
         {entry.label}
       </span>
     );
@@ -430,14 +483,13 @@ const SubmissionWorkspace: React.FC = () => {
 
   if (error && !submission) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-white text-red-600">
-        {error}
-      </div>
+      <div className="flex-1 flex items-center justify-center bg-white text-red-600">{error}</div>
     );
   }
 
   const activeSectionData = proposalSections[activeProposalSection];
-  const activeSectionContent = editedContent[activeProposalSection] ?? activeSectionData?.content ?? '';
+  const activeSectionContent =
+    editedContent[activeProposalSection] ?? activeSectionData?.content ?? '';
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -445,7 +497,6 @@ const SubmissionWorkspace: React.FC = () => {
     <div className="flex-1 flex bg-white min-h-0">
       {/* ── LEFT / MAIN PANEL ─────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col border-r border-gray-100 min-w-0">
-
         {/* Header */}
         <div className="px-6 py-5 border-b border-gray-100">
           <div className="flex items-center justify-between mb-4">
@@ -455,9 +506,13 @@ const SubmissionWorkspace: React.FC = () => {
                 <ChevronRight size={14} />
                 <span>{submission?.opportunity?.external_ref ?? 'N/A'}</span>
               </div>
-              <h1 className="text-xl font-bold text-gray-900">{submission?.title ?? 'Submission Workspace'}</h1>
+              <h1 className="text-xl font-bold text-gray-900">
+                {submission?.title ?? 'Submission Workspace'}
+              </h1>
               <div className="flex items-center gap-2 mt-1">
-                <p className="text-sm text-gray-500">{submission?.opportunity?.agency ?? 'Unknown Agency'}</p>
+                <p className="text-sm text-gray-500">
+                  {submission?.opportunity?.agency ?? 'Unknown Agency'}
+                </p>
                 {submission?.status && getStatusBadge(submission.status)}
                 {submission?.approval_status && getApprovalBadge(submission.approval_status)}
               </div>
@@ -486,7 +541,10 @@ const SubmissionWorkspace: React.FC = () => {
                 <span className="font-medium text-gray-900">{progress}%</span>
               </div>
               <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${progress}%` }} />
+                <div
+                  className="h-full bg-green-500 rounded-full transition-all"
+                  style={{ width: `${progress}%` }}
+                />
               </div>
             </div>
             <div className="flex-1">
@@ -495,12 +553,17 @@ const SubmissionWorkspace: React.FC = () => {
                 <span className="font-medium text-gray-900">{proposalProgress}%</span>
               </div>
               <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full bg-purple-500 rounded-full transition-all" style={{ width: `${proposalProgress}%` }} />
+                <div
+                  className="h-full bg-purple-500 rounded-full transition-all"
+                  style={{ width: `${proposalProgress}%` }}
+                />
               </div>
             </div>
             <div className="text-right shrink-0">
               <p className="text-xs text-gray-500">Due Date</p>
-              <p className="text-sm font-semibold text-gray-900">{formatDate(submission?.due_date ?? '')}</p>
+              <p className="text-sm font-semibold text-gray-900">
+                {formatDate(submission?.due_date ?? '')}
+              </p>
             </div>
           </div>
         </div>
@@ -514,44 +577,76 @@ const SubmissionWorkspace: React.FC = () => {
 
         {/* Approval workflow */}
         <div className="px-6 py-4 border-b border-gray-100">
-          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Approval Workflow</h2>
+          <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+            Approval Workflow
+          </h2>
           <div className="flex items-center gap-2">
             {getApprovalSteps().map((step, index) => (
               <React.Fragment key={step.label}>
                 {index > 0 && <ArrowRight size={16} className="text-gray-300 shrink-0" />}
-                <div className={`flex-1 p-3 rounded-lg border transition-all ${
-                  step.status === 'approved' ? 'bg-green-50 border-green-200'
-                    : step.status === 'rejected' ? 'bg-red-50 border-red-200'
-                    : step.status === 'pending' ? 'bg-amber-50 border-amber-200'
-                    : 'bg-gray-50 border-gray-200'
-                }`}>
+                <div
+                  className={`flex-1 p-3 rounded-lg border transition-all ${
+                    step.status === 'approved'
+                      ? 'bg-green-50 border-green-200'
+                      : step.status === 'rejected'
+                        ? 'bg-red-50 border-red-200'
+                        : step.status === 'pending'
+                          ? 'bg-amber-50 border-amber-200'
+                          : 'bg-gray-50 border-gray-200'
+                  }`}
+                >
                   <div className="flex items-center gap-2">
-                    <div className={`shrink-0 ${
-                      step.status === 'approved' ? 'text-green-600'
-                        : step.status === 'rejected' ? 'text-red-600'
-                        : step.status === 'pending' ? 'text-amber-600'
-                        : 'text-gray-400'
-                    }`}>
-                      {step.status === 'approved' ? <CheckCircle size={18} />
-                        : step.status === 'rejected' ? <XCircle size={18} />
-                        : step.icon}
+                    <div
+                      className={`shrink-0 ${
+                        step.status === 'approved'
+                          ? 'text-green-600'
+                          : step.status === 'rejected'
+                            ? 'text-red-600'
+                            : step.status === 'pending'
+                              ? 'text-amber-600'
+                              : 'text-gray-400'
+                      }`}
+                    >
+                      {step.status === 'approved' ? (
+                        <CheckCircle size={18} />
+                      ) : step.status === 'rejected' ? (
+                        <XCircle size={18} />
+                      ) : (
+                        step.icon
+                      )}
                     </div>
                     <div className="min-w-0">
-                      <p className={`text-xs font-medium truncate ${
-                        step.status === 'approved' ? 'text-green-800'
-                          : step.status === 'rejected' ? 'text-red-800'
-                          : step.status === 'pending' ? 'text-amber-800'
-                          : 'text-gray-500'
-                      }`}>{step.label}</p>
-                      <p className={`text-xs ${
-                        step.status === 'approved' ? 'text-green-600'
-                          : step.status === 'rejected' ? 'text-red-600'
-                          : step.status === 'pending' ? 'text-amber-600'
-                          : 'text-gray-400'
-                      }`}>
-                        {step.status === 'approved' ? 'Approved'
-                          : step.status === 'rejected' ? 'Rejected'
-                          : step.status === 'pending' ? 'Pending' : 'Waiting'}
+                      <p
+                        className={`text-xs font-medium truncate ${
+                          step.status === 'approved'
+                            ? 'text-green-800'
+                            : step.status === 'rejected'
+                              ? 'text-red-800'
+                              : step.status === 'pending'
+                                ? 'text-amber-800'
+                                : 'text-gray-500'
+                        }`}
+                      >
+                        {step.label}
+                      </p>
+                      <p
+                        className={`text-xs ${
+                          step.status === 'approved'
+                            ? 'text-green-600'
+                            : step.status === 'rejected'
+                              ? 'text-red-600'
+                              : step.status === 'pending'
+                                ? 'text-amber-600'
+                                : 'text-gray-400'
+                        }`}
+                      >
+                        {step.status === 'approved'
+                          ? 'Approved'
+                          : step.status === 'rejected'
+                            ? 'Rejected'
+                            : step.status === 'pending'
+                              ? 'Pending'
+                              : 'Waiting'}
                       </p>
                     </div>
                   </div>
@@ -562,7 +657,11 @@ const SubmissionWorkspace: React.FC = () => {
                         disabled={approvingStep !== null}
                         className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700 disabled:opacity-50"
                       >
-                        {approvingStep === step.stepName ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle size={12} />}
+                        {approvingStep === step.stepName ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          <CheckCircle size={12} />
+                        )}
                         Approve
                       </button>
                       <button
@@ -570,7 +669,11 @@ const SubmissionWorkspace: React.FC = () => {
                         disabled={approvingStep !== null}
                         className="flex-1 flex items-center justify-center gap-1 px-2 py-1 bg-red-600 text-white rounded text-xs font-medium hover:bg-red-700 disabled:opacity-50"
                       >
-                        {approvingStep === step.stepName ? <Loader2 size={12} className="animate-spin" /> : <XCircle size={12} />}
+                        {approvingStep === step.stepName ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          <XCircle size={12} />
+                        )}
                         Reject
                       </button>
                     </div>
@@ -614,7 +717,9 @@ const SubmissionWorkspace: React.FC = () => {
         {/* ── TAB: CHECKLIST & DOCUMENTS ─────────────────────────────── */}
         {activeTab === 'checklist' && (
           <div className="flex-1 overflow-y-auto p-6">
-            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Checklist</h2>
+            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">
+              Checklist
+            </h2>
             {tasks.length === 0 ? (
               <div className="text-sm text-gray-500">No tasks yet for this submission.</div>
             ) : (
@@ -623,23 +728,36 @@ const SubmissionWorkspace: React.FC = () => {
                   <div
                     key={task.id}
                     className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
-                      task.completed ? 'bg-green-50 border-green-100'
-                        : task.locked ? 'bg-gray-50 border-gray-200'
-                        : 'bg-white border-gray-100 hover:border-gray-200'
+                      task.completed
+                        ? 'bg-green-50 border-green-100'
+                        : task.locked
+                          ? 'bg-gray-50 border-gray-200'
+                          : 'bg-white border-gray-100 hover:border-gray-200'
                     }`}
                   >
-                    <button className="shrink-0" onClick={() => handleToggleTask(task)} disabled={task.locked}>
+                    <button
+                      className="shrink-0"
+                      onClick={() => handleToggleTask(task)}
+                      disabled={task.locked}
+                    >
                       {task.completed ? (
                         <CheckCircle size={20} className="text-green-600" />
                       ) : (
-                        <Circle size={20} className={task.locked ? 'text-gray-300' : 'text-gray-400'} />
+                        <Circle
+                          size={20}
+                          className={task.locked ? 'text-gray-300' : 'text-gray-400'}
+                        />
                       )}
                     </button>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium ${task.completed ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
+                      <p
+                        className={`text-sm font-medium ${task.completed ? 'text-gray-500 line-through' : 'text-gray-900'}`}
+                      >
                         {task.title}
                       </p>
-                      {task.subtitle && <p className="text-xs text-gray-500 mt-0.5">{task.subtitle}</p>}
+                      {task.subtitle && (
+                        <p className="text-xs text-gray-500 mt-0.5">{task.subtitle}</p>
+                      )}
                     </div>
                     {task.locked && (
                       <span className="text-xs text-gray-500 flex items-center gap-1">
@@ -651,25 +769,37 @@ const SubmissionWorkspace: React.FC = () => {
               </div>
             )}
 
-            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mt-8 mb-4">Documents</h2>
+            <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mt-8 mb-4">
+              Documents
+            </h2>
             {documents.length === 0 ? (
               <div className="text-sm text-gray-500">No documents uploaded yet.</div>
             ) : (
               <div className="space-y-2">
                 {documents.map((doc) => (
-                  <div key={doc.id} className="flex items-center gap-3 p-3 border border-gray-100 rounded-lg hover:border-gray-200 transition-all">
+                  <div
+                    key={doc.id}
+                    className="flex items-center gap-3 p-3 border border-gray-100 rounded-lg hover:border-gray-200 transition-all"
+                  >
                     <div className="h-10 w-10 rounded-lg bg-gray-100 flex items-center justify-center">
                       <FileText size={20} className="text-gray-500" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">{doc.file_name}</p>
-                      <p className="text-xs text-gray-500">{formatFileSize(doc.file_size)} - {doc.created_at ? formatDate(doc.created_at) : 'Recently'}</p>
+                      <p className="text-xs text-gray-500">
+                        {formatFileSize(doc.file_size)} -{' '}
+                        {doc.created_at ? formatDate(doc.created_at) : 'Recently'}
+                      </p>
                     </div>
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                      doc.scan_status === 'clean' ? 'bg-green-100 text-green-700'
-                        : doc.scan_status === 'pending' ? 'bg-amber-100 text-amber-700'
-                        : 'bg-gray-100 text-gray-600'
-                    }`}>
+                    <span
+                      className={`px-2 py-0.5 rounded text-xs font-medium ${
+                        doc.scan_status === 'clean'
+                          ? 'bg-green-100 text-green-700'
+                          : doc.scan_status === 'pending'
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
                       {doc.scan_status ?? 'pending'}
                     </span>
                     <button className="p-1.5 hover:bg-gray-100 rounded-lg">
@@ -694,9 +824,15 @@ const SubmissionWorkspace: React.FC = () => {
               className="flex items-center justify-center gap-2 w-full mt-4 py-3 border-2 border-dashed border-gray-200 rounded-lg text-sm text-gray-500 hover:border-gray-300 hover:text-gray-700 transition-all disabled:opacity-60"
             >
               {isUploading ? (
-                <><Loader2 size={16} className="animate-spin" />Uploading...</>
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Uploading...
+                </>
               ) : (
-                <><Upload size={16} />Upload Documents</>
+                <>
+                  <Upload size={16} />
+                  Upload Documents
+                </>
               )}
             </button>
           </div>
@@ -714,9 +850,15 @@ const SubmissionWorkspace: React.FC = () => {
                   className="flex items-center justify-center gap-1.5 w-full py-2 bg-purple-600 text-white rounded-lg text-xs font-medium hover:bg-purple-700 disabled:opacity-60 transition-all"
                 >
                   {isGeneratingAll ? (
-                    <><Loader2 size={12} className="animate-spin" />Generating...</>
+                    <>
+                      <Loader2 size={12} className="animate-spin" />
+                      Generating...
+                    </>
                   ) : (
-                    <><Wand2 size={12} />Generate All</>
+                    <>
+                      <Wand2 size={12} />
+                      Generate All
+                    </>
                   )}
                 </button>
               </div>
@@ -730,7 +872,9 @@ const SubmissionWorkspace: React.FC = () => {
                       key={section.key}
                       onClick={() => setActiveProposalSection(section.key as SectionKey)}
                       className={`w-full text-left px-3 py-2.5 rounded-lg text-xs font-medium transition-all flex items-center justify-between gap-1 ${
-                        isActive ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-600 hover:bg-white hover:text-gray-900'
+                        isActive
+                          ? 'bg-white shadow-sm text-gray-900 border border-gray-200'
+                          : 'text-gray-600 hover:bg-white hover:text-gray-900'
                       }`}
                     >
                       <span className="truncate">{section.label}</span>
@@ -754,7 +898,7 @@ const SubmissionWorkspace: React.FC = () => {
               {/* Section toolbar */}
               <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100 bg-white">
                 <h3 className="text-sm font-semibold text-gray-900">
-                  {PROPOSAL_SECTIONS.find(s => s.key === activeProposalSection)?.label}
+                  {PROPOSAL_SECTIONS.find((s) => s.key === activeProposalSection)?.label}
                 </h3>
                 <div className="flex items-center gap-1.5">
                   {activeSectionData?.status === 'generated' && (
@@ -764,9 +908,15 @@ const SubmissionWorkspace: React.FC = () => {
                       title="Copy to clipboard"
                     >
                       {copiedSection === activeProposalSection ? (
-                        <><CheckCheck size={12} className="text-green-600" />Copied</>
+                        <>
+                          <CheckCheck size={12} className="text-green-600" />
+                          Copied
+                        </>
                       ) : (
-                        <><Copy size={12} />Copy</>
+                        <>
+                          <Copy size={12} />
+                          Copy
+                        </>
                       )}
                     </button>
                   )}
@@ -776,11 +926,20 @@ const SubmissionWorkspace: React.FC = () => {
                     className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-lg transition-all disabled:opacity-60"
                   >
                     {generatingSection === activeProposalSection ? (
-                      <><Loader2 size={12} className="animate-spin" />Generating...</>
+                      <>
+                        <Loader2 size={12} className="animate-spin" />
+                        Generating...
+                      </>
                     ) : activeSectionData?.status === 'generated' ? (
-                      <><RefreshCw size={12} />Regenerate</>
+                      <>
+                        <RefreshCw size={12} />
+                        Regenerate
+                      </>
                     ) : (
-                      <><Wand2 size={12} />Generate</>
+                      <>
+                        <Wand2 size={12} />
+                        Generate
+                      </>
                     )}
                   </button>
                 </div>
@@ -792,27 +951,41 @@ const SubmissionWorkspace: React.FC = () => {
                   <div className="h-full flex flex-col items-center justify-center text-center px-8 text-gray-400">
                     <Wand2 size={32} className="mb-3 text-gray-300" />
                     <p className="text-sm font-medium text-gray-600 mb-1">No content yet</p>
-                    <p className="text-xs">Click "Generate" to create this section with AI,<br/>or "Generate All" to build the full proposal at once.</p>
+                    <p className="text-xs">
+                      Click "Generate" to create this section with AI,
+                      <br />
+                      or "Generate All" to build the full proposal at once.
+                    </p>
                   </div>
                 )}
                 {generatingSection === activeProposalSection && !activeSectionData && (
                   <div className="h-full flex flex-col items-center justify-center text-center px-8 text-gray-400">
                     <Loader2 size={32} className="mb-3 text-purple-400 animate-spin" />
-                    <p className="text-sm font-medium text-gray-600">Writing {PROPOSAL_SECTIONS.find(s => s.key === activeProposalSection)?.label}...</p>
+                    <p className="text-sm font-medium text-gray-600">
+                      Writing{' '}
+                      {PROPOSAL_SECTIONS.find((s) => s.key === activeProposalSection)?.label}...
+                    </p>
                     <p className="text-xs mt-1">This usually takes 10–30 seconds</p>
                   </div>
                 )}
                 {activeSectionData?.status === 'error' && (
                   <div className="p-4">
                     <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                      Generation failed: {activeSectionData.error || 'Unknown error'}. Click Regenerate to try again.
+                      Generation failed: {activeSectionData.error || 'Unknown error'}. Click
+                      Regenerate to try again.
                     </div>
                   </div>
                 )}
-                {(activeSectionData?.status === 'generated' || (activeSectionData && activeSectionData.status !== 'error')) && (
+                {(activeSectionData?.status === 'generated' ||
+                  (activeSectionData && activeSectionData.status !== 'error')) && (
                   <textarea
                     value={activeSectionContent}
-                    onChange={(e) => setEditedContent(prev => ({ ...prev, [activeProposalSection]: e.target.value }))}
+                    onChange={(e) =>
+                      setEditedContent((prev) => ({
+                        ...prev,
+                        [activeProposalSection]: e.target.value,
+                      }))
+                    }
                     className="w-full h-full p-4 text-sm text-gray-800 leading-relaxed resize-none focus:outline-none font-mono"
                     placeholder="Generated content will appear here..."
                     spellCheck
@@ -865,21 +1038,29 @@ const SubmissionWorkspace: React.FC = () => {
                 {complianceResult.fit_score !== undefined && (
                   <div className="p-3 rounded-lg border bg-white">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Fit Score</span>
-                      <span className={`text-lg font-bold ${
-                        complianceResult.fit_score >= 70 ? 'text-green-600'
-                          : complianceResult.fit_score >= 40 ? 'text-amber-600'
-                          : 'text-red-600'
-                      }`}>
+                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Fit Score
+                      </span>
+                      <span
+                        className={`text-lg font-bold ${
+                          complianceResult.fit_score >= 70
+                            ? 'text-green-600'
+                            : complianceResult.fit_score >= 40
+                              ? 'text-amber-600'
+                              : 'text-red-600'
+                        }`}
+                      >
                         {complianceResult.fit_score}/100
                       </span>
                     </div>
                     <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all ${
-                          complianceResult.fit_score >= 70 ? 'bg-green-500'
-                            : complianceResult.fit_score >= 40 ? 'bg-amber-500'
-                            : 'bg-red-500'
+                          complianceResult.fit_score >= 70
+                            ? 'bg-green-500'
+                            : complianceResult.fit_score >= 40
+                              ? 'bg-amber-500'
+                              : 'bg-red-500'
                         }`}
                         style={{ width: `${complianceResult.fit_score}%` }}
                       />
@@ -892,8 +1073,12 @@ const SubmissionWorkspace: React.FC = () => {
                     <div className="flex items-start gap-2">
                       <CheckCircle size={16} className="text-green-600 shrink-0 mt-0.5" />
                       <div>
-                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Assessment</p>
-                        <p className="text-sm text-gray-700">{complianceResult.qualification_reason}</p>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                          Assessment
+                        </p>
+                        <p className="text-sm text-gray-700">
+                          {complianceResult.qualification_reason}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -904,7 +1089,9 @@ const SubmissionWorkspace: React.FC = () => {
                     <div className="flex items-start gap-2">
                       <Sparkles size={16} className="text-purple-600 shrink-0 mt-0.5" />
                       <div>
-                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">AI Summary</p>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                          AI Summary
+                        </p>
                         <p className="text-sm text-gray-700">{complianceResult.ai_summary}</p>
                       </div>
                     </div>
@@ -916,7 +1103,9 @@ const SubmissionWorkspace: React.FC = () => {
                     <div className="flex items-start gap-2">
                       <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
                       <div>
-                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Risks</p>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                          Risks
+                        </p>
                         <ul className="space-y-1">
                           {complianceResult.risks.map((risk: string, i: number) => (
                             <li key={i} className="text-sm text-gray-700 flex items-start gap-1.5">
@@ -935,7 +1124,9 @@ const SubmissionWorkspace: React.FC = () => {
                     <div className="flex items-start gap-2">
                       <CheckCircle size={16} className="text-green-600 shrink-0 mt-0.5" />
                       <div>
-                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Strengths</p>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                          Strengths
+                        </p>
                         <ul className="space-y-1">
                           {complianceResult.strengths.map((strength: string, i: number) => (
                             <li key={i} className="text-sm text-gray-700 flex items-start gap-1.5">
@@ -951,9 +1142,14 @@ const SubmissionWorkspace: React.FC = () => {
               </div>
             )}
 
-            {!submission?.opportunity?.ai_summary && !submission?.opportunity?.description && !complianceResult && !isCheckingCompliance && (
-              <div className="text-sm text-gray-500">No AI insights available yet. Run a compliance check to get started.</div>
-            )}
+            {!submission?.opportunity?.ai_summary &&
+              !submission?.opportunity?.description &&
+              !complianceResult &&
+              !isCheckingCompliance && (
+                <div className="text-sm text-gray-500">
+                  No AI insights available yet. Run a compliance check to get started.
+                </div>
+              )}
           </div>
         </div>
 
@@ -965,9 +1161,15 @@ const SubmissionWorkspace: React.FC = () => {
               className="flex items-center justify-center gap-2 w-full py-2.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition-all disabled:opacity-60"
             >
               {isGeneratingAll ? (
-                <><Loader2 size={16} className="animate-spin" />Generating Proposal...</>
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Generating Proposal...
+                </>
               ) : (
-                <><Wand2 size={16} />Generate Full Proposal</>
+                <>
+                  <Wand2 size={16} />
+                  Generate Full Proposal
+                </>
               )}
             </button>
           )}
@@ -977,9 +1179,15 @@ const SubmissionWorkspace: React.FC = () => {
             className="flex items-center justify-center gap-2 w-full py-2.5 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-all disabled:opacity-60"
           >
             {isCheckingCompliance ? (
-              <><Loader2 size={16} className="animate-spin" />Checking...</>
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                Checking...
+              </>
             ) : (
-              <><Sparkles size={16} />Run Compliance Check</>
+              <>
+                <Sparkles size={16} />
+                Run Compliance Check
+              </>
             )}
           </button>
         </div>

@@ -3,6 +3,7 @@
 ## Before You Start
 
 **Prerequisites:**
+
 - [ ] Code pushed to GitHub ✅ (Done: commit `7e4334c`)
 - [ ] You have access to Supabase Dashboard
 - [ ] You have access to your production URL
@@ -28,6 +29,7 @@
 5. Wait for completion (should take 2-3 seconds)
 
 **Expected Result:**
+
 ```
 Success. No rows returned
 ```
@@ -35,6 +37,7 @@ Success. No rows returned
 ### Step 1.3: Verify Migration Success
 
 **Run this verification query:**
+
 ```sql
 -- Copy and paste this into SQL Editor, then click RUN
 SELECT
@@ -76,6 +79,7 @@ FROM (SELECT 1) x;
 ```
 
 **Expected Output:**
+
 ```
 Test 1: Foreign Key    | profiles_id_fkey | ✅ PASS: DEFERRABLE
 Test 2: Trigger        | on_auth_user_... | ✅ PASS: Trigger exists
@@ -84,6 +88,7 @@ Test 3: User-Profile.. | Data Check       | ✅ PASS: All users have profiles
 
 **If ALL 3 tests show ✅ PASS:** Continue to Part 2
 **If ANY test shows ❌ FAIL:** STOP and check:
+
 - Did the migration run without errors?
 - Are you on the correct (production) project?
 - Try running the migration again
@@ -95,6 +100,7 @@ Test 3: User-Profile.. | Data Check       | ✅ PASS: All users have profiles
 ### Step 2.1: Check Deployment Status
 
 **For Vercel:**
+
 1. Go to: https://vercel.com/dashboard
 2. Find your Procura project
 3. Check latest deployment
@@ -107,6 +113,7 @@ Test 3: User-Profile.. | Data Check       | ✅ PASS: All users have profiles
 **Important:** Old cached code can cause issues
 
 **Chrome/Edge:**
+
 1. Press `Ctrl+Shift+Delete` (Windows) or `Cmd+Shift+Delete` (Mac)
 2. Select "Cached images and files"
 3. Click "Clear data"
@@ -124,6 +131,7 @@ Test 3: User-Profile.. | Data Check       | ✅ PASS: All users have profiles
 2. **Click "Sign up" or "Create Account"**
 
 3. **Enter test data:**
+
    ```
    Full Name: Test User
    Email: test+production@youremail.com
@@ -133,16 +141,19 @@ Test 3: User-Profile.. | Data Check       | ✅ PASS: All users have profiles
 4. **Click "Create Account"**
 
 **✅ SUCCESS if you see:**
+
 - Green success message: "Check your email for a confirmation link!"
 - No red error messages
 - No infinite spinner
 
 **❌ FAILURE if you see:**
+
 - "Database error saving new user"
 - Red error message
 - Infinite spinner
 
 **Console check:**
+
 - Open DevTools (F12)
 - Go to Console tab
 - Should NOT see: "foreign_key_violation" or "Database error"
@@ -156,6 +167,7 @@ Test 3: User-Profile.. | Data Check       | ✅ PASS: All users have profiles
 1. **Go to login page**
 
 2. **Enter credentials:**
+
    ```
    Email: your-existing-account@email.com
    Password: YourPassword123!@#
@@ -164,19 +176,22 @@ Test 3: User-Profile.. | Data Check       | ✅ PASS: All users have profiles
 3. **Click "Sign In"**
 
 **✅ SUCCESS if:**
+
 - Redirects to `/dashboard` within 2-3 seconds
 - Dashboard loads successfully
 - No errors in console
 
 **❌ FAILURE if:**
+
 - Spinner spins forever (>10 seconds)
 - Error: "signal is aborted without reason"
 - Redirects to `/access-denied`
 
 **Troubleshooting if login fails:**
+
 ```javascript
 // Open browser console and run:
-localStorage.clear()
+localStorage.clear();
 // Then try logging in again
 ```
 
@@ -189,16 +204,19 @@ localStorage.clear()
 2. **Try weak password: `"password"`**
 
 **✅ Expected:**
+
 - Error: "Password must be at least 12 characters"
 
 3. **Try: `"Password123"`**
 
 **✅ Expected:**
+
 - Error: "Password must contain special characters"
 
 4. **Try: `"ValidPass123!@#"`**
 
 **✅ Expected:**
+
 - Proceeds (no password error)
 
 ---
@@ -212,11 +230,13 @@ localStorage.clear()
 3. **Click "Sign In" 3 times**
 
 **✅ Expected after 3rd attempt:**
+
 - Error message: "Too many failed attempts. Please wait X seconds"
 - Login button becomes disabled
 - Counter counts down
 
 **Wait for timer to reach 0, then:**
+
 - Button becomes enabled again
 - Can attempt login
 
@@ -245,10 +265,12 @@ LIMIT 10;
 ```
 
 **✅ Expected:**
+
 - All users show "✅ Has Profile"
 - Role is "viewer" for new signups
 
 **❌ If any show "❌ Missing Profile":**
+
 ```sql
 -- Fix it with this backfill query:
 INSERT INTO public.profiles (id, email, full_name, role, created_at, updated_at, last_active)
@@ -273,6 +295,7 @@ ON CONFLICT (id) DO NOTHING;
 ### Test 4.1: No Hardcoded Credentials
 
 **In your codebase, run:**
+
 ```bash
 git grep -i "Rv9994600670"
 ```
@@ -286,11 +309,13 @@ git grep -i "Rv9994600670"
 ### Test 4.2: Test Credentials Secured
 
 **Try running E2E tests without env vars:**
+
 ```bash
 npm run test:e2e
 ```
 
 **✅ Expected:**
+
 - Error: "E2E credentials not configured"
 
 **❌ If tests run:** E2E credentials aren't properly secured
@@ -302,11 +327,13 @@ npm run test:e2e
 ### Monitor 5.1: Set Up Error Alerts
 
 **Supabase Dashboard:**
+
 1. Go to: Logs
 2. Filter by: ERROR
 3. Bookmark this URL for quick access
 
 **Check daily for:**
+
 - `foreign_key_violation` errors
 - `AbortError` errors
 - Authentication failures
@@ -343,6 +370,7 @@ FROM user_stats u, profile_stats p, recent_signups r;
 ```
 
 **✅ Healthy if:**
+
 - `missing_profiles` = 0
 - `status` = '✅ HEALTHY'
 
@@ -378,6 +406,7 @@ Before you consider this deployment complete, verify:
    - Browser: DevTools → Console
 
 2. **Rollback Database:**
+
    ```sql
    -- See PRODUCTION_CHECKLIST.md → Rollback section
    ```

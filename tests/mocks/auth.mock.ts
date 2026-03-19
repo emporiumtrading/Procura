@@ -12,8 +12,8 @@ function createSupabaseMock() {
       refreshSession: vi.fn(),
       extendSession: vi.fn(),
       verifyMFASecret: vi.fn(),
-      attemptMFA: vi.fn()
-    }
+      attemptMFA: vi.fn(),
+    },
   };
 }
 
@@ -22,11 +22,17 @@ function createTokenStorageMock() {
     getToken: vi.fn(),
     getCSRFToken: vi.fn(),
     setToken: vi.fn(),
-    clearToken: vi.fn()
+    clearToken: vi.fn(),
   };
 }
 
 const state: AuthState = { supabase: null, tokenStorage: null };
+
+const rateLimitState: { limited: Set<string>; attempts: Record<string, number> } = {
+  limited: new Set(),
+  attempts: {},
+};
+const RATE_LIMIT_MAX_ATTEMPTS = 5;
 
 async function canAccessRouteImpl(route: string, token: string) {
   if (!token) return { allowed: false, reason: 'No authentication token provided' };
@@ -46,14 +52,21 @@ async function canAccessRouteImpl(route: string, token: string) {
       return { allowed: false, reason: 'User role not authorized for admin routes' };
     }
     if (role === 'viewer') {
-      if (route === '/opportunities' || route.startsWith('/opportunities') && !route.includes('/create') && !route.includes('/edit'))
+      if (
+        route === '/opportunities' ||
+        (route.startsWith('/opportunities') &&
+          !route.includes('/create') &&
+          !route.includes('/edit'))
+      )
         return { allowed: true, reason: 'Viewer role has read access' };
       return { allowed: false, reason: 'Viewer role not authorized for write operations' };
     }
     return { allowed: true, reason: 'Access granted' };
   } catch (e: any) {
-    if (e?.message?.includes('Invalid token')) return { allowed: false, reason: 'Invalid authentication token' };
-    if (e?.message?.includes('signature')) return { allowed: false, reason: 'Tampered authentication token' };
+    if (e?.message?.includes('Invalid token'))
+      return { allowed: false, reason: 'Invalid authentication token' };
+    if (e?.message?.includes('signature'))
+      return { allowed: false, reason: 'Tampered authentication token' };
     throw e;
   }
 }
@@ -61,6 +74,8 @@ async function canAccessRouteImpl(route: string, token: string) {
 export const authPipeline = {
   mockSupabase: () => {
     state.supabase = createSupabaseMock();
+    rateLimitState.limited.clear();
+    Object.keys(rateLimitState.attempts).forEach((k) => delete rateLimitState.attempts[k]);
     return state.supabase;
   },
   mockTokenStorage: () => {
@@ -84,7 +99,7 @@ export const authPipeline = {
   }),
   canPerformSensitiveOperation: vi.fn(async (token: string) => {
     const supabase = state.supabase!;
-    const user = await supabase.auth.getUser(token) as any;
+    const user = (await supabase.auth.getUser(token)) as any;
     if (!user) return { allowed: false, reason: 'Invalid authentication token' };
     if (user.mfa_enabled && !user.mfa_passed) {
       supabase.auth.verifyMFASecret?.();
@@ -102,8 +117,23 @@ export const authPipeline = {
     const stored = await state.tokenStorage?.getCSRFToken?.();
     return stored != null && csrf != null && stored === csrf;
   }),
-  attemptLogin: vi.fn(async () => ({ success: false, reason: 'Invalid credentials' })),
-  isRateLimited: vi.fn(() => false),
-  setRateLimit: vi.fn(),
-  resetRateLimit: vi.fn()
+  attemptLogin: vi.fn(async (email: string) => {
+    if (rateLimitState.limited.has(email)) {
+      return { success: false, reason: 'Too many failed login attempts' };
+    }
+    rateLimitState.attempts[email] = (rateLimitState.attempts[email] ?? 0) + 1;
+    if (rateLimitState.attempts[email] >= RATE_LIMIT_MAX_ATTEMPTS) {
+      rateLimitState.limited.add(email);
+      return { success: false, reason: 'Too many failed login attempts' };
+    }
+    return { success: false, reason: 'Invalid credentials' };
+  }),
+  isRateLimited: vi.fn((email: string) => rateLimitState.limited.has(email)),
+  setRateLimit: vi.fn((email: string, _value: boolean) => {
+    rateLimitState.limited.add(email);
+  }),
+  resetRateLimit: vi.fn((email: string) => {
+    rateLimitState.limited.delete(email);
+    rateLimitState.attempts[email] = 0;
+  }),
 };

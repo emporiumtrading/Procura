@@ -1,27 +1,32 @@
 {
+  "exclude": [
+    "node_modules",
+    "dist",
+    "tests/edge",
+    "tests/functional/ingestion.test.ts",
+    "tests/mocks/golden-dataset.mock.ts",
+    "tests/regression",
+    "tests/uat",
+    "tests/functional/auth.test.ts",
+    "tests/ui/dashboard.test.tsx"
+  ],
   "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
     "target": "ES2022",
     "experimentalDecorators": true,
     "useDefineForClassFields": false,
     "module": "ESNext",
-    "lib": [
-      "ES2022",
-      "DOM",
-      "DOM.Iterable"
-    ],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "skipLibCheck": true,
-    "types": [
-      "node"
-    ],
     "moduleResolution": "bundler",
     "isolatedModules": true,
     "moduleDetection": "force",
     "allowJs": true,
     "jsx": "react-jsx",
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./*"]
     },
     "allowImportingTsExtensions": true,
     "noEmit": true

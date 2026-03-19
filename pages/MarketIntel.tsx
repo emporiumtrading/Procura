@@ -1,5 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { TrendingUp, TrendingDown, Minus, BarChart2, Building2, Users, Search, RefreshCw, DollarSign } from 'lucide-react';
+import {
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  BarChart2,
+  Building2,
+  Users,
+  Search,
+  RefreshCw,
+  DollarSign,
+} from 'lucide-react';
 import api from '../lib/api';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -60,7 +70,9 @@ const MarketIntel: React.FC = () => {
   const naicsParam = profileNaics.join(',');
 
   // Tab
-  const [activeTab, setActiveTab] = useState<'summary' | 'naics' | 'incumbents' | 'agency'>('summary');
+  const [activeTab, setActiveTab] = useState<'summary' | 'naics' | 'incumbents' | 'agency'>(
+    'summary'
+  );
 
   // Data states
   const [summary, setSummary] = useState<SummaryData | null>(null);
@@ -81,18 +93,21 @@ const MarketIntel: React.FC = () => {
 
   // Load company profile for NAICS codes
   useEffect(() => {
-    api.getCompanyProfile().then(res => {
-      if (res.data?.naics_codes?.length) {
-        setProfileNaics(res.data.naics_codes);
-        setSelectedNaics(res.data.naics_codes[0] || '');
-      }
-    }).catch(() => {});
+    api
+      .getCompanyProfile()
+      .then((res) => {
+        if (res.data?.naics_codes?.length) {
+          setProfileNaics(res.data.naics_codes);
+          setSelectedNaics(res.data.naics_codes[0] || '');
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // Load summary when profile NAICS are available
   useEffect(() => {
     if (naicsParam) loadSummary();
-  }, [naicsParam]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [naicsParam]);
 
   const loadSummary = useCallback(async () => {
     if (!naicsParam) return;
@@ -176,7 +191,7 @@ const MarketIntel: React.FC = () => {
     if (!summary) return null;
 
     // Max spend for bar scaling
-    const maxSpend = Math.max(...summary.by_naics.map(n => n.total_spend || 0), 1);
+    const maxSpend = Math.max(...summary.by_naics.map((n) => n.total_spend || 0), 1);
 
     return (
       <div className="space-y-6">
@@ -187,19 +202,25 @@ const MarketIntel: React.FC = () => {
               <DollarSign size={22} className="text-white" />
             </div>
             <div>
-              <p className="text-xs text-indigo-600 font-semibold uppercase tracking-wider">Total Addressable Market</p>
-              <p className="text-3xl font-black text-gray-900">{formatMoney(summary.total_addressable_market)}</p>
+              <p className="text-xs text-indigo-600 font-semibold uppercase tracking-wider">
+                Total Addressable Market
+              </p>
+              <p className="text-3xl font-black text-gray-900">
+                {formatMoney(summary.total_addressable_market)}
+              </p>
             </div>
           </div>
           <p className="text-sm text-gray-600 mt-2">{summary.insight}</p>
-          <p className="text-xs text-gray-400 mt-1">FY{summary.fiscal_year} — federal contract obligations (top agencies per NAICS)</p>
+          <p className="text-xs text-gray-400 mt-1">
+            FY{summary.fiscal_year} — federal contract obligations (top agencies per NAICS)
+          </p>
         </div>
 
         {/* Per-NAICS breakdown */}
         <div>
           <h3 className="text-sm font-semibold text-gray-700 mb-3">Spend by NAICS Code</h3>
           <div className="space-y-3">
-            {summary.by_naics.map(row => {
+            {summary.by_naics.map((row) => {
               const pct = row.total_spend ? Math.round((row.total_spend / maxSpend) * 100) : 0;
               const expanded = expandedNaics.has(row.naics);
               return (
@@ -207,7 +228,8 @@ const MarketIntel: React.FC = () => {
                   <button
                     onClick={() => {
                       const next = new Set(expandedNaics);
-                      if (expanded) next.delete(row.naics); else next.add(row.naics);
+                      if (expanded) next.delete(row.naics);
+                      else next.add(row.naics);
                       setExpandedNaics(next);
                       if (!expanded) {
                         setSelectedNaics(row.naics);
@@ -217,11 +239,15 @@ const MarketIntel: React.FC = () => {
                     }}
                     className="w-full flex items-center gap-3 px-4 py-3 bg-white hover:bg-gray-50 transition-colors text-left"
                   >
-                    <span className="font-mono text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded font-bold">{row.naics}</span>
+                    <span className="font-mono text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded font-bold">
+                      {row.naics}
+                    </span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs text-gray-500 truncate">{row.top_agency}</span>
-                        <span className="text-sm font-bold text-gray-900 ml-2 shrink-0">{formatMoney(row.total_spend)}</span>
+                        <span className="text-sm font-bold text-gray-900 ml-2 shrink-0">
+                          {formatMoney(row.total_spend)}
+                        </span>
                       </div>
                       <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                         <div
@@ -255,10 +281,13 @@ const MarketIntel: React.FC = () => {
       {/* NAICS selector */}
       <div className="flex gap-2">
         <div className="flex gap-2 flex-wrap flex-1">
-          {profileNaics.map(code => (
+          {profileNaics.map((code) => (
             <button
               key={code}
-              onClick={() => { setSelectedNaics(code); loadNaicsAnalysis(code); }}
+              onClick={() => {
+                setSelectedNaics(code);
+                loadNaicsAnalysis(code);
+              }}
               className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold border transition-colors ${
                 selectedNaics === code
                   ? 'bg-indigo-600 text-white border-indigo-600'
@@ -272,7 +301,7 @@ const MarketIntel: React.FC = () => {
         <div className="flex gap-2">
           <input
             value={selectedNaics}
-            onChange={e => setSelectedNaics(e.target.value)}
+            onChange={(e) => setSelectedNaics(e.target.value)}
             placeholder="Enter NAICS code"
             className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs font-mono w-36 focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none"
           />
@@ -291,14 +320,18 @@ const MarketIntel: React.FC = () => {
           {/* Insight card */}
           <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
             <p className="text-sm text-blue-800">{naicsData.insight}</p>
-            <p className="text-xs text-blue-500 mt-1">FY{naicsData.fiscal_year} data — source: USAspending.gov</p>
+            <p className="text-xs text-blue-500 mt-1">
+              FY{naicsData.fiscal_year} data — source: USAspending.gov
+            </p>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Top Agencies */}
             <div className="border border-gray-100 rounded-xl overflow-hidden">
               <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
-                <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">Top Awarding Agencies</h3>
+                <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                  Top Awarding Agencies
+                </h3>
               </div>
               <div className="divide-y divide-gray-50">
                 {naicsData.top_agencies.slice(0, 8).map((agency, i) => (
@@ -307,7 +340,9 @@ const MarketIntel: React.FC = () => {
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium text-gray-900 truncate">{agency.name}</p>
                     </div>
-                    <span className="text-xs font-bold text-indigo-700 shrink-0">{formatMoney(agency.amount)}</span>
+                    <span className="text-xs font-bold text-indigo-700 shrink-0">
+                      {formatMoney(agency.amount)}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -316,7 +351,9 @@ const MarketIntel: React.FC = () => {
             {/* Top Vendors */}
             <div className="border border-gray-100 rounded-xl overflow-hidden">
               <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
-                <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">Top Incumbents / Competitors</h3>
+                <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                  Top Incumbents / Competitors
+                </h3>
               </div>
               <div className="divide-y divide-gray-50">
                 {naicsData.top_vendors.slice(0, 8).map((vendor, i) => (
@@ -324,9 +361,13 @@ const MarketIntel: React.FC = () => {
                     <span className="text-xs text-gray-400 w-4 text-center">{i + 1}</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium text-gray-900 truncate">{vendor.name}</p>
-                      {vendor.uei && <p className="text-[10px] text-gray-400 font-mono">UEI: {vendor.uei}</p>}
+                      {vendor.uei && (
+                        <p className="text-[10px] text-gray-400 font-mono">UEI: {vendor.uei}</p>
+                      )}
                     </div>
-                    <span className="text-xs font-bold text-green-700 shrink-0">{formatMoney(vendor.amount)}</span>
+                    <span className="text-xs font-bold text-green-700 shrink-0">
+                      {formatMoney(vendor.amount)}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -357,7 +398,9 @@ const MarketIntel: React.FC = () => {
         <>
           <div className="bg-green-50 border border-green-100 rounded-xl p-4">
             <p className="text-sm text-green-800">{incumbents.insight}</p>
-            <p className="text-xs text-green-600 mt-1">NAICS codes: {incumbents.naics_codes.join(', ')} · FY{incumbents.fiscal_year}</p>
+            <p className="text-xs text-green-600 mt-1">
+              NAICS codes: {incumbents.naics_codes.join(', ')} · FY{incumbents.fiscal_year}
+            </p>
           </div>
 
           <div className="border border-gray-100 rounded-xl overflow-hidden">
@@ -368,12 +411,19 @@ const MarketIntel: React.FC = () => {
               <span className="text-right">Awards (FY{incumbents.fiscal_year})</span>
             </div>
             <div className="divide-y divide-gray-50">
-              {incumbents.incumbents.map(v => (
-                <div key={v.rank} className="grid grid-cols-[40px_1fr_140px_120px] px-4 py-2.5 items-center hover:bg-gray-50 transition-colors">
+              {incumbents.incumbents.map((v) => (
+                <div
+                  key={v.rank}
+                  className="grid grid-cols-[40px_1fr_140px_120px] px-4 py-2.5 items-center hover:bg-gray-50 transition-colors"
+                >
                   <span className="text-xs font-bold text-gray-400">#{v.rank}</span>
                   <span className="text-xs font-medium text-gray-900">{v.name}</span>
-                  <span className="text-[10px] font-mono text-gray-400 truncate">{v.uei || '—'}</span>
-                  <span className="text-xs font-bold text-right text-indigo-700">{formatMoney(v.amount)}</span>
+                  <span className="text-[10px] font-mono text-gray-400 truncate">
+                    {v.uei || '—'}
+                  </span>
+                  <span className="text-xs font-bold text-right text-indigo-700">
+                    {formatMoney(v.amount)}
+                  </span>
                 </div>
               ))}
             </div>
@@ -383,7 +433,9 @@ const MarketIntel: React.FC = () => {
 
       {!incumbents && !loading && (
         <div className="text-center py-12 text-gray-400 text-sm">
-          {naicsParam ? 'Click Refresh to load incumbent data.' : 'Set NAICS codes in your Company Profile first.'}
+          {naicsParam
+            ? 'Click Refresh to load incumbent data.'
+            : 'Set NAICS codes in your Company Profile first.'}
         </div>
       )}
     </div>
@@ -394,8 +446,8 @@ const MarketIntel: React.FC = () => {
       <div className="flex gap-2">
         <input
           value={agencyName}
-          onChange={e => setAgencyName(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && loadAgencyTrend(agencyName)}
+          onChange={(e) => setAgencyName(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && loadAgencyTrend(agencyName)}
           placeholder="e.g. Department of Defense, HHS, GSA..."
           className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 outline-none"
         />
@@ -410,38 +462,57 @@ const MarketIntel: React.FC = () => {
 
       {agencyTrend && (
         <>
-          <div className={`border rounded-xl p-4 ${
-            agencyTrend.direction === 'increasing' ? 'bg-green-50 border-green-100' :
-            agencyTrend.direction === 'decreasing' ? 'bg-red-50 border-red-100' :
-            'bg-gray-50 border-gray-100'
-          }`}>
+          <div
+            className={`border rounded-xl p-4 ${
+              agencyTrend.direction === 'increasing'
+                ? 'bg-green-50 border-green-100'
+                : agencyTrend.direction === 'decreasing'
+                  ? 'bg-red-50 border-red-100'
+                  : 'bg-gray-50 border-gray-100'
+            }`}
+          >
             <div className="flex items-center gap-2 mb-1">
               <TrendIcon direction={agencyTrend.direction} />
-              <span className={`text-xs font-bold uppercase tracking-wider ${
-                agencyTrend.direction === 'increasing' ? 'text-green-700' :
-                agencyTrend.direction === 'decreasing' ? 'text-red-700' :
-                'text-gray-600'
-              }`}>{agencyTrend.direction}</span>
+              <span
+                className={`text-xs font-bold uppercase tracking-wider ${
+                  agencyTrend.direction === 'increasing'
+                    ? 'text-green-700'
+                    : agencyTrend.direction === 'decreasing'
+                      ? 'text-red-700'
+                      : 'text-gray-600'
+                }`}
+              >
+                {agencyTrend.direction}
+              </span>
             </div>
             <p className="text-sm text-gray-800">{agencyTrend.insight}</p>
           </div>
 
           {/* Trend bar chart */}
           <div className="border border-gray-100 rounded-xl p-4">
-            <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-4">Annual Obligations — {agencyTrend.agency}</h3>
+            <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-4">
+              Annual Obligations — {agencyTrend.agency}
+            </h3>
             <div className="flex items-end gap-3 h-32">
-              {agencyTrend.trend.map(row => {
-                const maxVal = Math.max(...agencyTrend.trend.map(t => t.obligations || 0), 1);
-                const heightPct = row.obligations ? Math.max(4, Math.round((row.obligations / maxVal) * 100)) : 4;
+              {agencyTrend.trend.map((row) => {
+                const maxVal = Math.max(...agencyTrend.trend.map((t) => t.obligations || 0), 1);
+                const heightPct = row.obligations
+                  ? Math.max(4, Math.round((row.obligations / maxVal) * 100))
+                  : 4;
                 return (
                   <div key={row.fiscal_year} className="flex-1 flex flex-col items-center gap-1">
-                    <span className="text-[10px] font-bold text-gray-600">{formatMoney(row.obligations)}</span>
+                    <span className="text-[10px] font-bold text-gray-600">
+                      {formatMoney(row.obligations)}
+                    </span>
                     <div
                       className={`w-full rounded-t-md transition-all duration-500 ${
-                        row.obligations == null ? 'bg-gray-100' :
-                        agencyTrend.direction === 'increasing' ? 'bg-green-400' :
-                        agencyTrend.direction === 'decreasing' ? 'bg-red-400' :
-                        'bg-indigo-400'
+                        row.obligations == null
+                          ? 'bg-gray-100'
+                          : agencyTrend.direction === 'increasing'
+                            ? 'bg-green-400'
+                            : agencyTrend.direction === 'decreasing'
+                              ? 'bg-red-400'
+                              : 'bg-indigo-400'
                       }`}
                       style={{ height: `${heightPct}%` }}
                     />
@@ -458,7 +529,9 @@ const MarketIntel: React.FC = () => {
         <div className="text-center py-12 text-gray-400 text-sm">
           Enter an agency name and click Analyze to see multi-year spending trends.
           <br />
-          <span className="text-xs mt-1 block text-gray-300">Data sourced from USAspending.gov — no API key required.</span>
+          <span className="text-xs mt-1 block text-gray-300">
+            Data sourced from USAspending.gov — no API key required.
+          </span>
         </div>
       )}
     </div>
@@ -467,7 +540,6 @@ const MarketIntel: React.FC = () => {
   return (
     <div className="flex-1 overflow-auto bg-gray-50">
       <div className="max-w-5xl mx-auto px-6 py-8">
-
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center gap-3">
@@ -476,20 +548,26 @@ const MarketIntel: React.FC = () => {
             </div>
             <div>
               <h1 className="text-2xl font-black text-gray-900">Market Intelligence</h1>
-              <p className="text-sm text-gray-500">Federal spending data from USAspending.gov — no API key required</p>
+              <p className="text-sm text-gray-500">
+                Federal spending data from USAspending.gov — no API key required
+              </p>
             </div>
           </div>
 
           {!naicsParam && (
             <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
-              Set your NAICS codes in <a href="#/company-profile" className="underline font-medium">Company Profile</a> to unlock portfolio-level market data.
+              Set your NAICS codes in{' '}
+              <a href="#/company-profile" className="underline font-medium">
+                Company Profile
+              </a>{' '}
+              to unlock portfolio-level market data.
             </div>
           )}
         </div>
 
         {/* Tab bar */}
         <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mb-6">
-          {tabs.map(tab => {
+          {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
               <button
@@ -522,7 +600,9 @@ const MarketIntel: React.FC = () => {
           {error && !loading && (
             <div className="bg-red-50 border border-red-100 rounded-xl p-4 mb-4">
               <p className="text-sm text-red-700">{error}</p>
-              <p className="text-xs text-red-500 mt-1">USAspending.gov may be temporarily unavailable. Try again in a moment.</p>
+              <p className="text-xs text-red-500 mt-1">
+                USAspending.gov may be temporarily unavailable. Try again in a moment.
+              </p>
             </div>
           )}
 

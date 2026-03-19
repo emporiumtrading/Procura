@@ -24,6 +24,7 @@ Your code is already deployed via Vercel/GitHub integration.
 ### Step 3️⃣: Test (10 min) ⭐ CRITICAL
 
 **Test A: Signup**
+
 1. Go to your production URL
 2. Sign up with new email: `test@yourdomain.com`
 3. Password: `TestSecure123!@#`
@@ -31,6 +32,7 @@ Your code is already deployed via Vercel/GitHub integration.
 5. ❌ Should NOT: "Database error saving new user"
 
 **Test B: Login**
+
 1. Use existing account
 2. Enter credentials
 3. Click Sign In
@@ -53,15 +55,18 @@ Your code is already deployed via Vercel/GitHub integration.
 ## 🆘 If Tests Fail
 
 ### Signup fails with "Database error"
+
 → Check Step 1: Did migration run successfully?
 → Run verification query from Part 1.3
 
 ### Login spinner never stops
+
 → Clear browser cache: `Ctrl+Shift+Delete`
 → Clear localStorage: DevTools → Application → Local Storage → Clear
 → Try in incognito mode
 
 ### Still broken?
+
 → See `PRODUCTION_CHECKLIST.md` → "If Issues Arise"
 → Rollback: See `DEPLOYMENT.md` → "Rollback Plan"
 

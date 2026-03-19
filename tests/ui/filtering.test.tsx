@@ -1,11 +1,62 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Dashboard Filtering and Sorting', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/dashboard');
-  });
+const DASHBOARD_URL = '/#/dashboard?e2e=1';
 
+const MOCK_OPPORTUNITIES = [
+  {
+    id: 'opp-1',
+    title: 'Cybersecurity Assessment',
+    agency: 'DOD',
+    source: 'sam_gov',
+    fit_score: 95,
+    status: 'qualified',
+    due_date: '2025-12-01',
+  },
+  {
+    id: 'opp-2',
+    title: 'IT & Network Services',
+    agency: 'DHS',
+    source: 'govcon',
+    fit_score: 85,
+    status: 'new',
+    due_date: '2025-11-15',
+  },
+  {
+    id: 'opp-3',
+    title: 'Cloud (AWS) Services',
+    agency: 'NASA',
+    source: 'sam_gov',
+    fit_score: 75,
+    status: 'qualified',
+    due_date: '2025-10-10',
+  },
+  {
+    id: 'opp-4',
+    title: 'General Infrastructure Upgrade',
+    agency: 'GSA',
+    source: 'sam_gov',
+    fit_score: 65,
+    status: 'new',
+    due_date: '2025-09-20',
+  },
+];
+
+test.describe('Dashboard Filtering and Sorting', () => {
   test('supports complex multi-criteria filtering', async ({ page }) => {
+    await page.route('**/api/opportunities**', (route) => {
+      route.fulfill({
+        status: 200,
+        json: {
+          data: MOCK_OPPORTUNITIES,
+          total: MOCK_OPPORTUNITIES.length,
+          page: 1,
+          limit: 25,
+        },
+      });
+    });
+
+    await page.goto(DASHBOARD_URL);
+    await page.waitForLoadState('networkidle');
     await page.waitForSelector('[data-testid="opportunity-card"]');
 
     // Status filter
@@ -14,9 +65,8 @@ test.describe('Dashboard Filtering and Sorting', () => {
     // Source filter
     await page.selectOption('[data-testid="filter-source"]', 'sam_gov');
 
-    // Score range
+    // Score threshold (min fit score)
     await page.fill('[data-testid="filter-min-fit-score"]', '70');
-    await page.fill('[data-testid="filter-max-fit-score"]', '95');
 
     await page.click('[data-testid="apply-filters"]');
     await page.waitForTimeout(500);
@@ -27,6 +77,20 @@ test.describe('Dashboard Filtering and Sorting', () => {
   });
 
   test('handles rapid filter toggling without performance degradation', async ({ page }) => {
+    await page.route('**/api/opportunities**', (route) => {
+      route.fulfill({
+        status: 200,
+        json: {
+          data: MOCK_OPPORTUNITIES,
+          total: MOCK_OPPORTUNITIES.length,
+          page: 1,
+          limit: 25,
+        },
+      });
+    });
+
+    await page.goto(DASHBOARD_URL);
+    await page.waitForLoadState('networkidle');
     await page.waitForSelector('[data-testid="opportunity-card"]');
 
     const statusFilter = page.locator('[data-testid="filter-status"]');
@@ -44,6 +108,21 @@ test.describe('Dashboard Filtering and Sorting', () => {
   });
 
   test('search supports special characters', async ({ page }) => {
+    await page.route('**/api/opportunities**', (route) => {
+      route.fulfill({
+        status: 200,
+        json: {
+          data: MOCK_OPPORTUNITIES,
+          total: MOCK_OPPORTUNITIES.length,
+          page: 1,
+          limit: 25,
+        },
+      });
+    });
+
+    await page.goto(DASHBOARD_URL);
+    await page.waitForLoadState('networkidle');
+
     const searchInput = page.locator('[data-testid="search-input"]');
 
     await searchInput.fill('IT & Network');
@@ -66,25 +145,56 @@ test.describe('Dashboard Filtering and Sorting', () => {
   });
 
   test('sorts by multiple fields correctly', async ({ page }) => {
+    await page.route('**/api/opportunities**', (route) => {
+      route.fulfill({
+        status: 200,
+        json: {
+          data: MOCK_OPPORTUNITIES,
+          total: MOCK_OPPORTUNITIES.length,
+          page: 1,
+          limit: 25,
+        },
+      });
+    });
+
+    await page.goto(DASHBOARD_URL);
+    await page.waitForLoadState('networkidle');
     await page.waitForSelector('[data-testid="opportunity-card"]');
 
     const sortSelect = page.locator('[data-testid="sort-select"]');
 
-    await sortSelect.selectOption('fit_score_desc');
+    // Sort by fit score (desc by default for "fit")
+    await sortSelect.selectOption('fit');
     await page.waitForTimeout(300);
 
-    const titlesDesc = await page.locator('[data-testid="opportunity-title"]').allInnerTexts();
+    const titlesByFit = await page.locator('[data-testid="opportunity-title"]').allInnerTexts();
 
-    await sortSelect.selectOption('fit_score_asc');
+    // Sort by due date to get a different ordering
+    await sortSelect.selectOption('due');
     await page.waitForTimeout(300);
 
-    const titlesAsc = await page.locator('[data-testid="opportunity-title"]').allInnerTexts();
+    const titlesByDue = await page.locator('[data-testid="opportunity-title"]').allInnerTexts();
 
-    expect(titlesDesc.length).toBeGreaterThan(0);
-    expect(titlesAsc.length).toBeGreaterThan(0);
+    expect(titlesByFit.length).toBeGreaterThan(0);
+    expect(titlesByDue.length).toBeGreaterThan(0);
+    expect(titlesByFit).not.toEqual(titlesByDue);
   });
 
-  test('persists filters across reloads', async ({ page, context }) => {
+  test('persists filters across reloads', async ({ page }) => {
+    await page.route('**/api/opportunities**', (route) => {
+      route.fulfill({
+        status: 200,
+        json: {
+          data: MOCK_OPPORTUNITIES,
+          total: MOCK_OPPORTUNITIES.length,
+          page: 1,
+          limit: 25,
+        },
+      });
+    });
+
+    await page.goto(DASHBOARD_URL);
+    await page.waitForLoadState('networkidle');
     await page.waitForSelector('[data-testid="opportunity-card"]');
 
     await page.selectOption('[data-testid="filter-status"]', 'qualified');
@@ -98,6 +208,7 @@ test.describe('Dashboard Filtering and Sorting', () => {
 
     // Reload
     await page.reload();
+    await page.waitForLoadState('networkidle');
     await page.waitForSelector('[data-testid="opportunity-card"]');
 
     const persistedStatus = await page.inputValue('[data-testid="filter-status"]');
@@ -113,4 +224,3 @@ test.describe('Dashboard Filtering and Sorting', () => {
     expect(reloadedCount).toBe(filteredCount);
   });
 });
-

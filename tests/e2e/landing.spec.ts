@@ -41,7 +41,11 @@ test.describe('Landing Page', () => {
     await expect(passwordInput).toHaveAttribute('type', 'password');
 
     // Toggle visibility
-    await page.locator('button:near(:text("Password"))').filter({ has: page.locator('svg') }).first().click();
+    await page
+      .locator('button:near(:text("Password"))')
+      .filter({ has: page.locator('svg') })
+      .first()
+      .click();
     await expect(passwordInput).toHaveAttribute('type', 'text');
   });
 });

@@ -7,14 +7,18 @@ test.describe('Role-Based Access Control', () => {
     // Attempt to navigate to admin
     await page.goto('/#/admin');
     // Should be redirected to access-denied
-    await expect(page.getByText(/access denied|not authorized|permission/i).first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/access denied|not authorized|permission/i).first()).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   test('admin user can access /admin', async ({ page }) => {
     await loginAsAdmin(page);
     await page.goto('/#/admin');
     // Should see admin dashboard content
-    await expect(page.getByText(/admin|dashboard|user management|system/i).first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/admin|dashboard|user management|system/i).first()).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   test('access denied page shows return link', async ({ page }) => {

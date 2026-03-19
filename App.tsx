@@ -20,7 +20,10 @@ import MarketIntel from './pages/MarketIntel';
 import NotFound from './pages/NotFound';
 
 // Protected Route wrapper with optional role-based access control
-const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: string[] }> = ({ children, allowedRoles }) => {
+const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: string[] }> = ({
+  children,
+  allowedRoles,
+}) => {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -84,18 +87,24 @@ const App = () => {
           <Route path="/reset-password" element={<ResetPassword />} />
 
           {/* Admin Dashboard - Full page, no sidebar, admin-only */}
-          <Route path="/admin/*" element={
-            <ProtectedRoute allowedRoles={['admin']}>
-              <AdminDashboard />
-            </ProtectedRoute>
-          } />
+          <Route
+            path="/admin/*"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminDashboard />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Main App with Sidebar */}
-          <Route path="/*" element={
-            <ProtectedRoute>
-              <AppLayout />
-            </ProtectedRoute>
-          } />
+          <Route
+            path="/*"
+            element={
+              <ProtectedRoute>
+                <AppLayout />
+              </ProtectedRoute>
+            }
+          />
         </Routes>
       </Router>
     </AuthProvider>

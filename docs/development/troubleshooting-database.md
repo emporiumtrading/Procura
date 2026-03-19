@@ -7,11 +7,13 @@ This guide covers common database and authentication issues you may encounter du
 ## 🔴 "Database error saving new user"
 
 ### Symptoms
+
 - User signup fails with error: "Database error saving new user"
 - Cannot create new accounts in the application
 - Error occurs during Supabase Auth signup process
 
 ### Root Cause
+
 This error occurs when the database trigger that creates user profiles fails. Common reasons:
 
 1. **Migrations not run in order** - The `profiles` table or enums may not exist
@@ -28,6 +30,7 @@ Run the corrected migration script:
 ```
 
 **Steps:**
+
 1. Open [Supabase Dashboard](https://supabase.com/dashboard)
 2. Navigate to **SQL Editor**
 3. Copy contents of `supabase/migrations/04_fix_auth.sql`
@@ -47,7 +50,7 @@ Run the corrected migration script:
 After running the fix, execute this query to confirm:
 
 ```sql
-SELECT 
+SELECT
   COUNT(DISTINCT au.id) as total_auth_users,
   COUNT(DISTINCT p.id) as total_profiles,
   COUNT(DISTINCT au.id) - COUNT(DISTINCT p.id) as missing_profiles
@@ -62,22 +65,25 @@ Expected result: `missing_profiles` should be `0`.
 ## 🔴 Policy Already Exists Error
 
 ### Error Message
+
 ```
 ERROR: 42710: policy "PolicyName" for table "TableName" already exists
 ```
 
 ### Cause
+
 Migration scripts attempting to create policies that already exist from previous runs.
 
 ### Solution
+
 Always use conditional creation for policies:
 
 ```sql
-DO $$ 
+DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM pg_policies 
-    WHERE tablename = 'your_table' 
+    SELECT 1 FROM pg_policies
+    WHERE tablename = 'your_table'
     AND policyname = 'Your Policy Name'
   ) THEN
     CREATE POLICY "Your Policy Name"
@@ -99,14 +105,17 @@ CREATE POLICY "Your Policy Name" ON your_table FOR SELECT USING (true);
 ## 🔴 Type Does Not Exist Error
 
 ### Error Message
+
 ```
 ERROR: type "user_role" does not exist
 ```
 
 ### Cause
+
 Migrations run out of order - enums must be created before tables that reference them.
 
 ### Solution
+
 Ensure migrations run in numerical order:
 
 1. `01_schema.sql` - Creates enums and base tables
@@ -121,25 +130,26 @@ Ensure migrations run in numerical order:
 ## 🔴 Foreign Key Constraint Violation
 
 ### Error Message
+
 ```
 ERROR: insert or update on table "X" violates foreign key constraint
 ```
 
 ### Cause
+
 Attempting to reference a row in another table that doesn't exist.
 
 ### Common Scenarios
 
 1. **Profile doesn't exist for user**
    - Run `04_fix_auth.sql` to sync profiles
-   
 2. **Referenced entity deleted**
    - Check `ON DELETE CASCADE` constraints in schema
-   
 3. **Wrong UUID**
    - Verify the ID you're referencing actually exists
 
 ### Debug Query
+
 ```sql
 -- Check if referenced entity exists
 SELECT * FROM parent_table WHERE id = 'uuid-here';
@@ -150,23 +160,27 @@ SELECT * FROM parent_table WHERE id = 'uuid-here';
 ## 🔴 RLS Policy Blocking Access
 
 ### Symptoms
+
 - Queries return empty results even though data exists
 - `SELECT` works but `INSERT`/`UPDATE` fails with no error
 - Admin tools show data, but application doesn't
 
 ### Cause
+
 Row-Level Security (RLS) policies preventing access.
 
 ### Debug Steps
 
 1. **Check if RLS is enabled:**
+
 ```sql
-SELECT tablename, rowsecurity 
-FROM pg_tables 
+SELECT tablename, rowsecurity
+FROM pg_tables
 WHERE schemaname = 'public';
 ```
 
 2. **View current policies:**
+
 ```sql
 SELECT * FROM pg_policies WHERE tablename = 'your_table';
 ```
@@ -176,6 +190,7 @@ SELECT * FROM pg_policies WHERE tablename = 'your_table';
    - If this works, it's an RLS issue
 
 ### Solution
+
 Review and update policies in `02_rls_policies.sql`.
 
 ---
@@ -183,14 +198,16 @@ Review and update policies in `02_rls_policies.sql`.
 ## 🔴 Trigger Function Not Firing
 
 ### Symptoms
+
 - Auth user created but no profile
 - Expected automatic behavior doesn't happen
 
 ### Debug Steps
 
 1. **Check if trigger exists:**
+
 ```sql
-SELECT 
+SELECT
   tgname as trigger_name,
   tgrelid::regclass as table_name,
   proname as function_name
@@ -200,11 +217,13 @@ WHERE tgname = 'on_auth_user_created';
 ```
 
 2. **Check function definition:**
+
 ```sql
 SELECT prosrc FROM pg_proc WHERE proname = 'handle_new_user';
 ```
 
 3. **Test function manually:**
+
 ```sql
 -- Get a user ID
 SELECT id, email FROM auth.users LIMIT 1;
@@ -215,6 +234,7 @@ VALUES ('user-id-here', 'test@example.com', 'Test User', 'viewer'::user_role);
 ```
 
 ### Solution
+
 Run `04_fix_auth.sql` to recreate trigger with proper definition.
 
 ---
@@ -222,11 +242,13 @@ Run `04_fix_auth.sql` to recreate trigger with proper definition.
 ## 🔴 Connection Pool Exhausted
 
 ### Error Message
+
 ```
 FATAL: remaining connection slots are reserved
 ```
 
 ### Cause
+
 Too many concurrent database connections.
 
 ### Solution
@@ -236,6 +258,7 @@ Too many concurrent database connections.
    - Reduce connection pool size in backend
 
 2. **Backend Configuration:**
+
 ```python
 # backend/database.py
 supabase = create_client(
@@ -250,6 +273,7 @@ supabase = create_client(
 ```
 
 3. **Close connections properly:**
+
 ```python
 async with supabase.postgrest.from_('table').select('*').execute() as response:
     data = response.data
@@ -276,7 +300,7 @@ DROP TRIGGER IF EXISTS trigger_name ON table_name;
 CREATE TRIGGER trigger_name ...
 
 -- Policies
-DO $$ 
+DO $$
 BEGIN
   IF NOT EXISTS (...) THEN
     CREATE POLICY ...

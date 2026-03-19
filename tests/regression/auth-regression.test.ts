@@ -29,7 +29,7 @@ describe('Auth Regression Prevention - Security Regression', () => {
         '/admin/users',
         '/admin/settings',
         '/admin/subscriptions',
-        '/admin/system-health'
+        '/admin/system-health',
       ];
 
       // Mock user without admin role
@@ -37,7 +37,7 @@ describe('Auth Regression Prevention - Security Regression', () => {
         id: 'user-123',
         email: 'user@procura.com',
         role: 'user',
-        token: 'user-jwt-token'
+        token: 'user-jwt-token',
       };
 
       mockAuth.verifyToken.mockResolvedValue(regularUser);
@@ -45,7 +45,7 @@ describe('Auth Regression Prevention - Security Regression', () => {
       // Test all admin routes
       for (const route of adminRoutes) {
         const result = await authRegression.testRouteAccess(route, 'user-jwt-token');
-        
+
         expect(result.access_granted).toBe(false);
         expect(result.http_status).toBe(403);
         expect(result.error).toContain('Forbidden');
@@ -54,7 +54,7 @@ describe('Auth Regression Prevention - Security Regression', () => {
           user_id: 'user-123',
           route: route,
           role: 'user',
-          timestamp: expect.any(String)
+          timestamp: expect.any(String),
         });
       }
     });
@@ -65,7 +65,7 @@ describe('Auth Regression Prevention - Security Regression', () => {
         '/opportunities',
         '/submissions',
         '/connectors/create',
-        '/opportunities/opp-001/edit'
+        '/opportunities/opp-001/edit',
       ];
 
       // Mock viewer user (read-only)
@@ -73,7 +73,7 @@ describe('Auth Regression Prevention - Security Regression', () => {
         id: 'viewer-123',
         email: 'viewer@procura.com',
         role: 'viewer',
-        token: 'viewer-jwt-token'
+        token: 'viewer-jwt-token',
       };
 
       mockAuth.verifyToken.mockResolvedValue(viewerUser);
@@ -81,17 +81,17 @@ describe('Auth Regression Prevention - Security Regression', () => {
       // Test write routes
       for (const route of writeRoutes) {
         const result = await authRegression.testRouteAccess(route, 'viewer-jwt-token');
-        
+
         expect(result.access_granted).toBe(false);
         expect(result.http_status).toBe(403);
         expect(result.error).toContain('Read-only access');
-        
+
         expect(mockAuth.logSecurityEvent).toHaveBeenCalledWith({
           event: 'write_attempt_by_viewer',
           user_id: 'viewer-123',
           route: route,
           role: 'viewer',
-          timestamp: expect.any(String)
+          timestamp: expect.any(String),
         });
       }
     });
@@ -102,14 +102,14 @@ describe('Auth Regression Prevention - Security Regression', () => {
         id: 'user-123',
         email: 'usera@procura.com',
         role: 'user',
-        token: 'user-a-token'
+        token: 'user-a-token',
       };
 
       const userBOpportunity = {
         id: 'opp-456',
         external_ref: 'SAM-001',
         title: 'Test Opportunity',
-        user_id: 'user-456' // Different user
+        user_id: 'user-456', // Different user
       };
 
       mockAuth.verifyToken.mockResolvedValue(userA);
@@ -117,17 +117,17 @@ describe('Auth Regression Prevention - Security Regression', () => {
 
       // Test access to another user's opportunity
       const result = await authRegression.testResourceAccess('opp-456', 'user-a-token');
-      
+
       expect(result.access_granted).toBe(false);
       expect(result.http_status).toBe(403);
       expect(result.error).toContain('Not authorized');
-      
+
       expect(mockAuth.logSecurityEvent).toHaveBeenCalledWith({
         event: 'cross_user_access_attempt',
         attempted_user: 'user-123',
         target_user: 'user-456',
         resource: 'opp-456',
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
     });
   });
@@ -143,40 +143,40 @@ describe('Auth Regression Prevention - Security Regression', () => {
       const expiredPayload = {
         sub: 'user-123',
         exp: Math.floor(Date.now() / 1000) - 3600, // Expired 1 hour ago
-        iat: Math.floor(Date.now() / 1000) - 7200
+        iat: Math.floor(Date.now() / 1000) - 7200,
       };
 
       mockAuth.decodeToken.mockResolvedValue(expiredPayload);
       mockAuth.verifyTokenExpiration.mockResolvedValue(false);
 
       const result = await authRegression.validateToken(expiredToken);
-      
+
       expect(result.valid).toBe(false);
       expect(result.error).toBe('Token expired');
       expect(result.error_code).toBe('TOKEN_EXPIRED');
       expect(mockAuth.logSecurityEvent).toHaveBeenCalledWith({
         event: 'expired_token_attempt',
         token: expiredToken,
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
     });
 
     it('rejects tokens with invalid signature', async () => {
       // Mock tampered token
       const tamperedToken = 'tampered-jwt-token';
-      
+
       mockAuth.decodeToken.mockRejectedValue(new Error('Invalid signature'));
       mockAuth.verifySignature.mockResolvedValue(false);
 
       const result = await authRegression.validateToken(tamperedToken);
-      
+
       expect(result.valid).toBe(false);
       expect(result.error).toContain('Invalid signature');
       expect(result.error_code).toBe('INVALID_SIGNATURE');
       expect(mockAuth.logSecurityEvent).toHaveBeenCalledWith({
         event: 'tampered_token_attempt',
         token: tamperedToken,
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
     });
 
@@ -191,11 +191,11 @@ describe('Auth Regression Prevention - Security Regression', () => {
       mockAuth.decodeToken.mockResolvedValue(invalidPayload);
       mockAuth.validateClaims.mockResolvedValue({
         valid: false,
-        missing: ['exp', 'iat']
+        missing: ['exp', 'iat'],
       });
 
       const result = await authRegression.validateToken(invalidClaimsToken);
-      
+
       expect(result.valid).toBe(false);
       expect(result.error).toContain('Invalid claims');
       expect(result.missing_claims).toEqual(['exp', 'iat']);
@@ -207,14 +207,14 @@ describe('Auth Regression Prevention - Security Regression', () => {
       const payload = {
         sub: 'user-123',
         iss: 'untrusted-issuer.com', // Not the expected issuer
-        exp: Math.floor(Date.now() / 1000) + 3600
+        exp: Math.floor(Date.now() / 1000) + 3600,
       };
 
       mockAuth.decodeToken.mockResolvedValue(payload);
       mockAuth.verifyIssuer.mockResolvedValue(false);
 
       const result = await authRegression.validateToken(untrustedIssuerToken);
-      
+
       expect(result.valid).toBe(false);
       expect(result.error).toContain('Untrusted issuer');
       expect(result.issuer).toBe('untrusted-issuer.com');
@@ -229,7 +229,7 @@ describe('Auth Regression Prevention - Security Regression', () => {
         role: 'user',
         exp: Math.floor(Date.now() / 1000) + 3600,
         iat: Math.floor(Date.now() / 1000),
-        iss: 'procura-auth'
+        iss: 'procura-auth',
       };
 
       mockAuth.decodeToken.mockResolvedValue(validPayload);
@@ -239,12 +239,12 @@ describe('Auth Regression Prevention - Security Regression', () => {
       mockAuth.verifySignature.mockResolvedValue(true);
 
       const result = await authRegression.validateToken(validToken);
-      
+
       expect(result.valid).toBe(true);
       expect(result.user).toEqual({
         id: 'user-123',
         email: 'user@procura.com',
-        role: 'user'
+        role: 'user',
       });
       expect(result.error).toBeUndefined();
     });
@@ -266,7 +266,7 @@ describe('Auth Regression Prevention - Security Regression', () => {
         'system_config',
         'audit_logs',
         'connector_credentials',
-        'subscription_management'
+        'subscription_management',
       ];
 
       for (const operation of adminOperations) {
@@ -294,7 +294,7 @@ describe('Auth Regression Prevention - Security Regression', () => {
         'edit_opportunity',
         'delete_opportunity',
         'approve_submission',
-        'reject_submission'
+        'reject_submission',
       ];
 
       for (const operation of restrictedOperations) {
@@ -315,7 +315,7 @@ describe('Auth Regression Prevention - Security Regression', () => {
         id: 'user-123',
         email: 'user@procura.com',
         role: 'user',
-        token: 'user-token'
+        token: 'user-token',
       };
 
       // Mock role escalation attempt (e.g., by manipulating token claims)
@@ -324,14 +324,14 @@ describe('Auth Regression Prevention - Security Regression', () => {
           return {
             id: 'user-123',
             role: 'admin', // Trying to escalate
-            token: token
+            token: token,
           };
         }
         return regularUser;
       });
 
       const result = await authRegression.checkForRoleEscalation('user-token');
-      
+
       expect(result.escalation_detected).toBe(true);
       expect(result.original_role).toBe('user');
       expect(result.escalated_role).toBe('admin');
@@ -340,7 +340,7 @@ describe('Auth Regression Prevention - Security Regression', () => {
         user_id: 'user-123',
         attempted_role: 'admin',
         token: 'user-token',
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
     });
 
@@ -349,21 +349,21 @@ describe('Auth Regression Prevention - Security Regression', () => {
       const roles = [
         { id: 'admin-1', role: 'admin' },
         { id: 'user-1', role: 'user' },
-        { id: 'viewer-1', role: 'viewer' }
+        { id: 'viewer-1', role: 'viewer' },
       ];
 
       // Define operation permissions
       const permissions = [
         { operation: 'view_dashboard', allowed_roles: ['admin', 'user', 'viewer'] },
         { operation: 'create_opportunity', allowed_roles: ['admin', 'user'] },
-        { operation: 'manage_users', allowed_roles: ['admin'] }
+        { operation: 'manage_users', allowed_roles: ['admin'] },
       ];
 
       for (const permission of permissions) {
         for (const user of roles) {
           const result = await authRegression.checkPermission(user, permission.operation);
           const expected = permission.allowed_roles.includes(user.role);
-          
+
           expect(result.allowed).toBe(expected);
         }
       }
@@ -383,19 +383,19 @@ describe('Auth Regression Prevention - Security Regression', () => {
         role: 'user',
         created_at: new Date().toISOString(),
         expires_at: new Date(Date.now() + 3600000).toISOString(), // 1 hour
-        last_activity_at: new Date().toISOString()
+        last_activity_at: new Date().toISOString(),
       };
 
       mockAuth.createSession.mockResolvedValue({
         session_id: 'session-123',
         ...sessionData,
-        token: 'new-jwt-token'
+        token: 'new-jwt-token',
       });
 
       const session = await authRegression.createUserSession({
         user_id: 'user-123',
         email: 'user@procura.com',
-        role: 'user'
+        role: 'user',
       });
 
       expect(session.session_id).toBe('session-123');
@@ -405,7 +405,7 @@ describe('Auth Regression Prevention - Security Regression', () => {
         event: 'session_created',
         session_id: 'session-123',
         user_id: 'user-123',
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
     });
 
@@ -415,13 +415,13 @@ describe('Auth Regression Prevention - Security Regression', () => {
         session_id: 'session-123',
         user_id: 'user-123',
         expires_at: new Date(Date.now() - 1000).toISOString(), // Expired
-        last_activity_at: new Date(Date.now() - 60000).toISOString() // Last activity 1 min ago
+        last_activity_at: new Date(Date.now() - 60000).toISOString(), // Last activity 1 min ago
       };
 
       mockAuth.getSession.mockResolvedValue(expiredSession);
 
       const result = await authRegression.validateSession('session-123');
-      
+
       expect(result.valid).toBe(false);
       expect(result.expired).toBe(true);
       expect(result.error).toBe('Session expired');
@@ -429,7 +429,7 @@ describe('Auth Regression Prevention - Security Regression', () => {
         event: 'session_expired',
         session_id: 'session-123',
         user_id: 'user-123',
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
     });
 
@@ -439,24 +439,24 @@ describe('Auth Regression Prevention - Security Regression', () => {
         session_id: 'session-123',
         user_id: 'user-123',
         expires_at: new Date(Date.now() + 300000).toISOString(), // Expires in 5 min
-        last_activity_at: new Date(Date.now() - 1000).toISOString()
+        last_activity_at: new Date(Date.now() - 1000).toISOString(),
       };
 
       mockAuth.getSession.mockResolvedValue(activeSession);
       mockAuth.extendSession.mockResolvedValue({
         session_id: 'session-123',
-        expires_at: new Date(Date.now() + 3600000).toISOString() // Extended to 1 hour
+        expires_at: new Date(Date.now() + 3600000).toISOString(), // Extended to 1 hour
       });
 
       const result = await authRegression.extendUserSession('session-123');
-      
+
       expect(result.success).toBe(true);
       expect(result.expires_at).toBeDefined();
       expect(mockAuth.logSessionEvent).toHaveBeenCalledWith({
         event: 'session_extended',
         session_id: 'session-123',
         user_id: 'user-123',
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
     });
 
@@ -467,21 +467,21 @@ describe('Auth Regression Prevention - Security Regression', () => {
           session_id: 'session-1',
           user_id: 'user-123',
           created_at: new Date(Date.now() - 3600000).toISOString(),
-          last_activity_at: new Date(Date.now() - 1000).toISOString()
+          last_activity_at: new Date(Date.now() - 1000).toISOString(),
         },
         {
           session_id: 'session-2',
           user_id: 'user-123',
           created_at: new Date(Date.now() - 1800000).toISOString(),
-          last_activity_at: new Date(Date.now() - 500).toISOString()
-        }
+          last_activity_at: new Date(Date.now() - 500).toISOString(),
+        },
       ];
 
       mockAuth.getUserSessions.mockResolvedValue(userSessions);
       mockAuth.terminateSession.mockResolvedValue(true);
 
       const result = await authRegression.manageConcurrentSessions('user-123', 2);
-      
+
       // Should allow 2 sessions but notify about maximum
       expect(result.allowed).toBe(true);
       expect(result.active_sessions).toBe(2);
@@ -494,19 +494,19 @@ describe('Auth Regression Prevention - Security Regression', () => {
       const attackerSession = {
         session_id: 'attacker-known-session',
         user_id: 'attacker-123',
-        ip_address: '192.168.1.100'
+        ip_address: '192.168.1.100',
       };
 
       const victimToken = 'victim-token';
-      
+
       mockAuth.getSessionFromToken.mockResolvedValue(attackerSession);
       mockAuth.regenerateSessionToken.mockResolvedValue({
         session_id: 'new-secure-session',
-        token: 'new-secure-token'
+        token: 'new-secure-token',
       });
 
       const result = await authRegression.preventSessionFixation(victimToken);
-      
+
       expect(result.fixation_prevented).toBe(true);
       expect(result.new_session_id).toBe('new-secure-session');
       expect(result.new_token).toBe('new-secure-token');
@@ -514,7 +514,7 @@ describe('Auth Regression Prevention - Security Regression', () => {
         event: 'session_fixation_prevented',
         attacker_session: 'attacker-known-session',
         victim_token: victimToken,
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
     });
   });
@@ -530,17 +530,15 @@ describe('Auth Regression Prevention - Security Regression', () => {
       const userSession = {
         session_id: 'session-123',
         csrf_token: 'valid-csrf-token',
-        user_id: 'user-456'
+        user_id: 'user-456',
       };
 
       mockAuth.getSession.mockResolvedValue(userSession);
+      mockAuth.verifyCSRFToken.mockResolvedValue(true);
 
       // Test state-changing request with valid token
-      const result = await authRegression.validateCSRFProtection(
-        'session-123',
-        validCsrfToken
-      );
-      
+      const result = await authRegression.validateCSRFProtection('session-123', validCsrfToken);
+
       expect(result.valid).toBe(true);
       expect(result.error).toBeUndefined();
       expect(mockAuth.verifyCSRFToken).toHaveBeenCalled();
@@ -551,17 +549,14 @@ describe('Auth Regression Prevention - Security Regression', () => {
       const userSession = {
         session_id: 'session-123',
         csrf_token: 'valid-csrf-token',
-        user_id: 'user-456'
+        user_id: 'user-456',
       };
 
       mockAuth.getSession.mockResolvedValue(userSession);
 
       // Test state-changing request without CSRF token
-      const result = await authRegression.validateCSRFProtection(
-        'session-123',
-        null
-      );
-      
+      const result = await authRegression.validateCSRFProtection('session-123', null);
+
       expect(result.valid).toBe(false);
       expect(result.error).toBe('CSRF token required');
       expect(result.error_code).toBe('CSRF_MISSING');
@@ -569,7 +564,7 @@ describe('Auth Regression Prevention - Security Regression', () => {
         event: 'csrf_protection_triggered',
         session_id: 'session-123',
         user_id: 'user-456',
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
     });
 
@@ -578,7 +573,7 @@ describe('Auth Regression Prevention - Security Regression', () => {
       const userSession = {
         session_id: 'session-123',
         csrf_token: 'valid-csrf-token',
-        user_id: 'user-456'
+        user_id: 'user-456',
       };
 
       mockAuth.getSession.mockResolvedValue(userSession);
@@ -588,7 +583,7 @@ describe('Auth Regression Prevention - Security Regression', () => {
         'session-123',
         'invalid-csrf-token'
       );
-      
+
       expect(result.valid).toBe(false);
       expect(result.error).toBe('Invalid CSRF token');
       expect(result.error_code).toBe('CSRF_INVALID');
@@ -604,17 +599,14 @@ describe('Auth Regression Prevention - Security Regression', () => {
         session_id: 'session-123',
         csrf_token: 'old-csrf-token',
         user_id: 'user-456',
-        status: 'logged_out'
+        status: 'logged_out',
       };
 
       mockAuth.getSession.mockResolvedValue(loggedOutSession);
 
       // Test request with old CSRF token after logout
-      const result = await authRegression.validateCSRFProtection(
-        'session-123',
-        'old-csrf-token'
-      );
-      
+      const result = await authRegression.validateCSRFProtection('session-123', 'old-csrf-token');
+
       expect(result.valid).toBe(false);
       expect(result.error).toBe('Session invalid');
       expect(result.error_code).toBe('SESSION_INVALID');
@@ -625,7 +617,7 @@ describe('Auth Regression Prevention - Security Regression', () => {
       const userSession = {
         session_id: 'session-123',
         csrf_token: 'old-csrf-token',
-        user_id: 'user-456'
+        user_id: 'user-456',
       };
 
       mockAuth.getSession.mockResolvedValue(userSession);
@@ -637,7 +629,7 @@ describe('Auth Regression Prevention - Security Regression', () => {
         'change_password',
         'old-csrf-token'
       );
-      
+
       expect(result.success).toBe(true);
       expect(result.new_csrf_token).toBe('new-csrf-token');
       expect(mockAuth.rotateCSRFToken).toHaveBeenCalledWith('session-123');
@@ -656,16 +648,13 @@ describe('Auth Regression Prevention - Security Regression', () => {
         email: 'admin@procura.com',
         role: 'admin',
         mfa_enabled: true,
-        mfa_verified: false
+        mfa_verified: false,
       };
 
       mockAuth.verifyToken.mockResolvedValue(adminWithMFA);
 
-      const result = await authRegression.requireMFAForOperation(
-        'admin-token',
-        'user_management'
-      );
-      
+      const result = await authRegression.requireMFAForOperation('admin-token', 'user_management');
+
       expect(result.mfa_required).toBe(true);
       expect(result.operation).toBe('user_management');
       expect(result.user_id).toBe('admin-123');
@@ -680,16 +669,13 @@ describe('Auth Regression Prevention - Security Regression', () => {
         role: 'admin',
         mfa_enabled: true,
         mfa_verified: true,
-        mfa_verified_at: new Date().toISOString()
+        mfa_verified_at: new Date().toISOString(),
       };
 
       mockAuth.verifyToken.mockResolvedValue(verifiedAdmin);
 
-      const result = await authRegression.requireMFAForOperation(
-        'admin-token',
-        'user_management'
-      );
-      
+      const result = await authRegression.requireMFAForOperation('admin-token', 'user_management');
+
       expect(result.mfa_required).toBe(false);
       expect(result.mfa_verified).toBe(true);
       expect(result.allowed).toBe(true);
@@ -702,7 +688,7 @@ describe('Auth Regression Prevention - Security Regression', () => {
         email: 'admin@procura.com',
         role: 'admin',
         mfa_enabled: true,
-        mfa_verified: false
+        mfa_verified: false,
       };
 
       mockAuth.verifyToken.mockResolvedValue(adminUser);
@@ -717,7 +703,7 @@ describe('Auth Regression Prevention - Security Regression', () => {
           event: 'mfa_verification_failed',
           user_id: 'admin-123',
           attempt_count: expect.any(Number),
-          timestamp: expect.any(String)
+          timestamp: expect.any(String),
         });
       }
     });
@@ -727,13 +713,13 @@ describe('Auth Regression Prevention - Security Regression', () => {
       const userWithFailedAttempts = {
         id: 'user-123',
         mfa_failed_attempts: 3,
-        mfa_locked_until: null
+        mfa_locked_until: null,
       };
 
       mockAuth.getUserMFAAttempts.mockResolvedValue(userWithFailedAttempts);
 
       const result = await authRegression.checkMFAStatus('user-123');
-      
+
       expect(result.locked).toBe(false);
       expect(result.remaining_attempts).toBe(2); // 5 max - 3 used = 2 remaining
       expect(mockAuth.getUserMFAAttempts).toHaveBeenCalledWith('user-123');
@@ -753,7 +739,7 @@ describe('Auth Regression Prevention - Security Regression', () => {
         'qwerty',
         'abc',
         'user123',
-        'Admin!1' // Too short
+        'Admin!1', // Too short
       ];
 
       for (const password of weakPasswords) {
@@ -768,7 +754,7 @@ describe('Auth Regression Prevention - Security Regression', () => {
       const strongPassword = 'MyP@ssw0rd!2025#Secure';
 
       const result = await authRegression.validatePasswordStrength(strongPassword);
-      
+
       expect(result.valid).toBe(true);
       expect(result.weaknesses).toHaveLength(0);
       expect(result.score).toBeGreaterThan(80);
@@ -776,23 +762,19 @@ describe('Auth Regression Prevention - Security Regression', () => {
 
     it('prevents password reuse', async () => {
       // Mock user's password history
-      const passwordHistory = [
-        'OldPassword123!',
-        'PreviousPass456!',
-        'EvenOlderPass789!'
-      ];
+      const passwordHistory = ['OldPassword123!', 'PreviousPass456!', 'EvenOlderPass789!'];
 
       mockAuth.getPasswordHistory.mockResolvedValue(passwordHistory);
 
       // Test trying to reuse old password
       const result = await authRegression.checkPasswordReuse('user-123', 'OldPassword123!');
-      
+
       expect(result.allowed).toBe(false);
       expect(result.error).toBe('Password previously used');
       expect(mockAuth.logSecurityEvent).toHaveBeenCalledWith({
         event: 'password_reuse_attempt',
         user_id: 'user-123',
-        timestamp: expect.any(String)
+        timestamp: expect.any(String),
       });
     });
 
@@ -801,13 +783,13 @@ describe('Auth Regression Prevention - Security Regression', () => {
       const userWithExpiredPassword = {
         id: 'user-123',
         password_last_changed: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(), // 90 days ago
-        password_expiry_days: 90
+        password_expiry_days: 90,
       };
 
       mockAuth.getUserPasswordInfo.mockResolvedValue(userWithExpiredPassword);
 
       const result = await authRegression.checkPasswordExpiration('user-123');
-      
+
       expect(result.expired).toBe(true);
       expect(result.days_since_change).toBe(90);
       expect(result.requires_change).toBe(true);

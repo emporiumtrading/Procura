@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { Sentry } from '../lib/sentry';
 
 interface Props {
   children: ReactNode;
@@ -22,6 +23,7 @@ class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('ErrorBoundary caught:', error, errorInfo);
+    Sentry.captureException(error, { extra: { componentStack: errorInfo.componentStack } });
   }
 
   render() {
@@ -34,7 +36,8 @@ class ErrorBoundary extends Component<Props, State> {
             </div>
             <h1 className="text-xl font-bold text-gray-900 mb-2">Something went wrong</h1>
             <p className="text-sm text-gray-500 mb-6">
-              {this.state.error?.message || 'An unexpected error occurred. Please try refreshing the page.'}
+              {this.state.error?.message ||
+                'An unexpected error occurred. Please try refreshing the page.'}
             </p>
             <div className="flex items-center gap-3 justify-center">
               <button

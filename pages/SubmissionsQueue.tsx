@@ -1,8 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Search, Download, MoreHorizontal, Building2, Calendar, User, Loader2
-} from 'lucide-react';
+import { Search, Download, MoreHorizontal, Building2, Calendar, User, Loader2 } from 'lucide-react';
 import { api } from '../lib/api';
 
 type SubmissionRow = {
@@ -28,7 +26,11 @@ const SubmissionsQueue: React.FC = () => {
 
   const formatCurrency = (value?: number | null) => {
     if (!value) return 'TBD';
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      maximumFractionDigits: 0,
+    }).format(value);
   };
 
   const formatDate = (value: string) => {
@@ -124,7 +126,9 @@ const SubmissionsQueue: React.FC = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={() => {
-                const blob = new Blob([JSON.stringify(filteredSubmissions, null, 2)], { type: 'application/json' });
+                const blob = new Blob([JSON.stringify(filteredSubmissions, null, 2)], {
+                  type: 'application/json',
+                });
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.href = url;
@@ -192,7 +196,9 @@ const SubmissionsQueue: React.FC = () => {
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusStyle(sub.status)}`}>
+                      <span
+                        className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusStyle(sub.status)}`}
+                      >
                         {formatStatus(sub.status)}
                       </span>
                       <span className="text-xs text-gray-400 font-mono">{sub.id}</span>
@@ -203,7 +209,10 @@ const SubmissionsQueue: React.FC = () => {
                       {sub.agency} - {sub.opportunityRef}
                     </p>
                   </div>
-                  <button className="p-1.5 hover:bg-gray-100 rounded-lg" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    className="p-1.5 hover:bg-gray-100 rounded-lg"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <MoreHorizontal size={16} className="text-gray-400" />
                   </button>
                 </div>
@@ -244,4 +253,3 @@ const SubmissionsQueue: React.FC = () => {
 };
 
 export default SubmissionsQueue;
-

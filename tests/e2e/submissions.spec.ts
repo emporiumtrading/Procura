@@ -24,7 +24,9 @@ test.describe('Submissions Workflow', () => {
   });
 
   test('status filter tabs are interactive', async ({ page }) => {
-    const filterButtons = page.locator('button').filter({ hasText: /draft|in progress|submitted|approved|rejected/i });
+    const filterButtons = page
+      .locator('button')
+      .filter({ hasText: /draft|in progress|submitted|approved|rejected/i });
     const count = await filterButtons.count();
     if (count > 0) {
       await filterButtons.first().click();

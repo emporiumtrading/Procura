@@ -39,4 +39,3 @@ describe('Regression - Golden Dataset', () => {
     expect(parity.unexpected).toEqual([]);
   });
 });
-

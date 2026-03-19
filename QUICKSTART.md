@@ -1,6 +1,7 @@
 # Procura Ops - Quick Start Guide
 
 ## Prerequisites
+
 - Node.js (v18+)
 - Python (3.10+)
 - Supabase account
@@ -71,6 +72,7 @@ python -m uvicorn backend.main:app --reload --port 8001
 ```
 
 **Verify Backend**:
+
 - Visit http://localhost:8001 (should show API info)
 - Visit http://localhost:8001/health (should show health status)
 - Visit http://localhost:8001/docs (Swagger UI)
@@ -87,6 +89,7 @@ npm run dev
 ```
 
 **Verify Frontend**:
+
 - Visit http://localhost:5173
 - Should see Procura login page
 
@@ -105,17 +108,20 @@ npm run dev
 ### 1. Dashboard (Browse Opportunities)
 
 **Desktop View**:
+
 - ✓ Left side: Opportunity list
 - ✓ Right side: Permanent detail panel
 - ✓ First opportunity auto-selected
 - ✓ Empty state if no opportunities
 
 **Mobile View**:
+
 - ✓ Full-width list
 - ✓ Tap opportunity → modal drawer opens
 - ✓ Tap backdrop or X → modal closes
 
 **Actions**:
+
 ```bash
 1. Click "Sync Opportunities"
    → Fetches from SAM.gov, GovCon
@@ -173,6 +179,7 @@ npm run dev
 ## Common Issues & Solutions
 
 ### Backend won't start
+
 ```bash
 # Check port 8001 is not in use
 netstat -ano | findstr :8001  # Windows
@@ -182,6 +189,7 @@ lsof -i :8001                 # Mac/Linux
 ```
 
 ### Frontend can't connect to backend
+
 ```bash
 # Verify backend is running on port 8001
 curl http://localhost:8001/health
@@ -193,6 +201,7 @@ VITE_API_URL=http://localhost:8001/api
 ```
 
 ### No opportunities showing
+
 ```bash
 # Check API keys in backend/.env
 GOVCON_API_KEY=your-real-key
@@ -204,6 +213,7 @@ SAM_GOV_API_KEY=your-real-key
 ```
 
 ### AI Qualify not working
+
 ```bash
 # Check LLM provider is configured
 PROCURA_LLM_PROVIDER=anthropic  # or google
@@ -216,6 +226,7 @@ LLM_MODEL=claude-3-5-sonnet-20241022
 ```
 
 ### Database connection failed
+
 ```bash
 # Verify Supabase credentials
 SUPABASE_URL=https://your-project.supabase.co
@@ -232,11 +243,13 @@ curl https://your-project.supabase.co
 ## Health Check
 
 **Backend Health**:
+
 ```bash
 curl http://localhost:8001/health
 ```
 
 Expected response:
+
 ```json
 {
   "status": "healthy",
@@ -249,6 +262,7 @@ Expected response:
 ```
 
 **Frontend Health**:
+
 - Open browser console (F12)
 - No error messages
 - Network tab shows successful API calls
@@ -258,6 +272,7 @@ Expected response:
 ## Features Overview
 
 ### ✅ Working Features
+
 - ✓ Opportunity discovery (SAM.gov, GovCon)
 - ✓ AI qualification (fit, effort, urgency scoring)
 - ✓ Submission workflow (create, edit, finalize)
@@ -267,6 +282,7 @@ Expected response:
 - ✓ Responsive design (desktop, mobile)
 
 ### ⚠️ Not Implemented (Yet)
+
 - ❌ Browser automation (OpenManus)
 - ❌ Background jobs (Celery)
 - ❌ Feature flags system
@@ -278,12 +294,16 @@ Expected response:
 ## Development Tips
 
 ### Hot Reload
+
 Both frontend and backend support hot reload:
+
 - Frontend: Changes auto-refresh browser
 - Backend: Changes auto-restart server (with --reload)
 
 ### Debugging
+
 **Frontend**:
+
 ```bash
 # Browser DevTools (F12)
 # React DevTools extension
@@ -292,6 +312,7 @@ Both frontend and backend support hot reload:
 ```
 
 **Backend**:
+
 ```bash
 # Check terminal logs
 # Add print() or logger.info() statements
@@ -299,6 +320,7 @@ Both frontend and backend support hot reload:
 ```
 
 ### Testing API Endpoints
+
 ```bash
 # Use Swagger UI
 http://localhost:8001/docs
@@ -313,7 +335,9 @@ curl -H "Authorization: Bearer YOUR_TOKEN" \
 ## Production Deployment
 
 ### Environment Variables
+
 **Frontend (.env.production)**:
+
 ```env
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
@@ -321,6 +345,7 @@ VITE_API_URL=https://api.yourapp.com/api
 ```
 
 **Backend (.env)**:
+
 ```env
 ENVIRONMENT=production
 DEBUG=false
@@ -329,6 +354,7 @@ PORT=8001
 ```
 
 ### Build Commands
+
 ```bash
 # Frontend
 npm run build
@@ -353,6 +379,7 @@ gunicorn backend.main:app --workers 4 --bind 0.0.0.0:8001
 ## Next Steps
 
 After successful setup:
+
 1. ✓ Explore the Dashboard
 2. ✓ Sync some opportunities
 3. ✓ Test AI qualification

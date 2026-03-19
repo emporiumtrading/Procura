@@ -18,6 +18,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 
 import httpx
+import pytest
 
 # Allow running as a script: `python backend/test_connectors.py`
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -41,6 +42,7 @@ def _is_placeholder(value: str | None) -> bool:
     return upper == "PLACEHOLDER" or "PLACEHOLDER" in upper or v.startswith("your-")
 
 
+@pytest.mark.asyncio
 async def test_usaspending() -> list[dict]:
     """Test USAspending API - Public, no key needed"""
     print("\n" + "=" * 60)
@@ -86,6 +88,7 @@ async def test_usaspending() -> list[dict]:
         return results
 
 
+@pytest.mark.asyncio
 async def test_newsapi() -> list[dict]:
     """Test NewsAPI - Requires key"""
     print("\n" + "=" * 60)
@@ -118,6 +121,7 @@ async def test_newsapi() -> list[dict]:
         return articles
 
 
+@pytest.mark.asyncio
 async def test_sam_gov() -> list[dict]:
     """Test SAM.gov opportunities endpoint"""
     print("\n" + "=" * 60)
@@ -153,6 +157,7 @@ async def test_sam_gov() -> list[dict]:
         return opps
 
 
+@pytest.mark.asyncio
 async def test_govcon() -> list[dict]:
     """Test GovCon API opportunities search (via our connector)"""
     print("\n" + "=" * 60)

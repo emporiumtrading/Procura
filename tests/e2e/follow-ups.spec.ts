@@ -12,7 +12,9 @@ test.describe('Follow-ups', () => {
   });
 
   test('status filter cards are interactive', async ({ page }) => {
-    const filterCards = page.locator('button').filter({ hasText: /pending|checked|updated|awarded/i });
+    const filterCards = page
+      .locator('button')
+      .filter({ hasText: /pending|checked|updated|awarded/i });
     const count = await filterCards.count();
     if (count > 0) {
       // Click to filter

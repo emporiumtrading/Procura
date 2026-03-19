@@ -30,9 +30,9 @@ export const scrapersMock = {
         id: 'opp-001',
         title: 'Cloud Services',
         agency: 'DoD',
-        source: 'sam_gov'
-      }
-    ])
+        source: 'sam_gov',
+      },
+    ]),
   }),
 
   createGovConClient: () => ({
@@ -42,13 +42,12 @@ export const scrapersMock = {
         id: 'opp-002',
         title: 'Network Modernization',
         agency: 'DHS',
-        source: 'govcon'
-      }
-    ])
+        source: 'govcon',
+      },
+    ]),
   }),
 
   withRateLimiting: vi.fn(async <T>(fn: () => Promise<T>) => {
     return fn();
-  })
+  }),
 };
-

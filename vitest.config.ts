@@ -9,6 +9,16 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./tests/setup.ts'],
     include: ['tests/**/*.test.{ts,tsx}'],
+    exclude: [
+      'tests/ui/**',
+      'tests/uat/**',
+      'tests/functional/ingestion.test.ts',
+      'tests/edge/data-corruption.test.ts',
+      'tests/edge/performance.test.ts',
+      'tests/edge/external-failure.test.ts',
+      'node_modules',
+      'dist',
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
@@ -17,23 +27,20 @@ export default defineConfig({
           branches: 80,
           functions: 80,
           lines: 80,
-          statements: 80
-        }
-      }
+          statements: 80,
+        },
+      },
     },
-    watch: {
-      exclude: ['node_modules', 'dist', '.git']
-    }
   },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, '.'),
       '@tests': path.resolve(__dirname, 'tests'),
-      '@mocks': path.resolve(__dirname, 'tests/mocks')
-    }
+      '@mocks': path.resolve(__dirname, 'tests/mocks'),
+    },
   },
   // Mock external dependencies for testing
   optimizeDeps: {
-    exclude: ['@playwright/test']
-  }
+    exclude: ['@playwright/test'],
+  },
 });

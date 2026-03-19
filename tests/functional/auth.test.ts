@@ -25,17 +25,17 @@ describe('Authentication and Authorization Pipeline', () => {
         id: 'user-001',
         email: 'admin@procura.com',
         role: 'admin',
-        session_expires_at: new Date(Date.now() + 3600000).toISOString()
+        session_expires_at: new Date(Date.now() + 3600000).toISOString(),
       };
 
       mockSupabase.auth.getUser.mockResolvedValue(user);
       mockTokenStorage.getToken.mockResolvedValue('valid-jwt-token');
 
       const result = await authPipeline.canAccessRoute('/admin/dashboard', 'valid-jwt-token');
-      
+
       expect(result).toEqual({
         allowed: true,
-        reason: 'Admin role has access'
+        reason: 'Admin role has access',
       });
       expect(mockSupabase.auth.getUser).toHaveBeenCalledWith('valid-jwt-token');
     });
@@ -45,17 +45,17 @@ describe('Authentication and Authorization Pipeline', () => {
         id: 'user-002',
         email: 'contractor@procura.com',
         role: 'user',
-        session_expires_at: new Date(Date.now() + 3600000).toISOString()
+        session_expires_at: new Date(Date.now() + 3600000).toISOString(),
       };
 
       mockSupabase.auth.getUser.mockResolvedValue(user);
       mockTokenStorage.getToken.mockResolvedValue('valid-jwt-token');
 
       const result = await authPipeline.canAccessRoute('/admin/dashboard', 'valid-jwt-token');
-      
+
       expect(result).toEqual({
         allowed: false,
-        reason: 'User role not authorized for admin routes'
+        reason: 'User role not authorized for admin routes',
       });
     });
 
@@ -64,17 +64,17 @@ describe('Authentication and Authorization Pipeline', () => {
         id: 'user-003',
         email: 'viewer@procura.com',
         role: 'viewer',
-        session_expires_at: new Date(Date.now() + 3600000).toISOString()
+        session_expires_at: new Date(Date.now() + 3600000).toISOString(),
       };
 
       mockSupabase.auth.getUser.mockResolvedValue(user);
       mockTokenStorage.getToken.mockResolvedValue('valid-jwt-token');
 
       const result = await authPipeline.canAccessRoute('/opportunities', 'valid-jwt-token');
-      
+
       expect(result).toEqual({
         allowed: true,
-        reason: 'Viewer role has read access'
+        reason: 'Viewer role has read access',
       });
     });
 
@@ -83,17 +83,17 @@ describe('Authentication and Authorization Pipeline', () => {
         id: 'user-003',
         email: 'viewer@procura.com',
         role: 'viewer',
-        session_expires_at: new Date(Date.now() + 3600000).ISOString()
+        session_expires_at: new Date(Date.now() + 3600000).toISOString(),
       };
 
       mockSupabase.auth.getUser.mockResolvedValue(user);
       mockTokenStorage.getToken.mockResolvedValue('valid-jwt-token');
 
       const result = await authPipeline.canAccessRoute('/opportunities/create', 'valid-jwt-token');
-      
+
       expect(result).toEqual({
         allowed: false,
-        reason: 'Viewer role not authorized for write operations'
+        reason: 'Viewer role not authorized for write operations',
       });
     });
 
@@ -102,19 +102,19 @@ describe('Authentication and Authorization Pipeline', () => {
         id: 'user-004',
         email: 'admin@procura.com',
         role: 'admin',
-        session_expires_at: new Date(Date.now() - 3600000).toISOString() // Expired
+        session_expires_at: new Date(Date.now() - 3600000).toISOString(), // Expired
       };
 
       mockSupabase.auth.getUser.mockResolvedValue(user);
       mockTokenStorage.getToken.mockResolvedValue('valid-jwt-token');
 
       const result = await authPipeline.canAccessRoute('/admin/dashboard', 'valid-jwt-token');
-      
+
       expect(result).toEqual({
         allowed: false,
-        reason: 'Session expired'
+        reason: 'Session expired',
       });
-      
+
       // Should trigger session refresh
       expect(mockSupabase.auth.refreshSession).toHaveBeenCalled();
     });
@@ -130,10 +130,10 @@ describe('Authentication and Authorization Pipeline', () => {
       mockTokenStorage.getToken.mockResolvedValue('invalid-jwt-token');
 
       const result = await authPipeline.canAccessRoute('/dashboard', 'invalid-jwt-token');
-      
+
       expect(result).toEqual({
         allowed: false,
-        reason: 'Invalid authentication token'
+        reason: 'Invalid authentication token',
       });
       expect(mockSupabase.auth.getUser).toHaveBeenCalledWith('invalid-jwt-token');
     });
@@ -143,10 +143,10 @@ describe('Authentication and Authorization Pipeline', () => {
       mockTokenStorage.getToken.mockResolvedValue('tampered-jwt-token');
 
       const result = await authPipeline.canAccessRoute('/dashboard', 'tampered-jwt-token');
-      
+
       expect(result).toEqual({
         allowed: false,
-        reason: 'Tampered authentication token'
+        reason: 'Tampered authentication token',
       });
     });
 
@@ -154,10 +154,10 @@ describe('Authentication and Authorization Pipeline', () => {
       mockTokenStorage.getToken.mockResolvedValue(null);
 
       const result = await authPipeline.canAccessRoute('/dashboard', null);
-      
+
       expect(result).toEqual({
         allowed: false,
-        reason: 'No authentication token provided'
+        reason: 'No authentication token provided',
       });
     });
 
@@ -166,22 +166,22 @@ describe('Authentication and Authorization Pipeline', () => {
         id: 'user-005',
         email: 'admin@procura.com',
         role: 'admin',
-        session_expires_at: new Date(Date.now() + 3600000).toISOString()
+        session_expires_at: new Date(Date.now() + 3600000).toISOString(),
       };
 
       // Mock token with invalid claims
       mockSupabase.auth.getUser.mockResolvedValue({
         ...user,
-        claims: { invalid_claim: true }
+        claims: { invalid_claim: true },
       });
 
       mockTokenStorage.getToken.mockResolvedValue('valid-jwt-token');
 
       const result = await authPipeline.canAccessRoute('/dashboard', 'valid-jwt-token');
-      
+
       expect(result).toEqual({
         allowed: false,
-        reason: 'Invalid token claims'
+        reason: 'Invalid token claims',
       });
     });
   });
@@ -196,14 +196,14 @@ describe('Authentication and Authorization Pipeline', () => {
         id: 'user-006',
         email: 'user@procura.com',
         role: 'user',
-        session_expires_at: new Date(Date.now() - 1000).toISOString() // Just expired
+        session_expires_at: new Date(Date.now() - 1000).toISOString(), // Just expired
       };
 
       mockSupabase.auth.getUser.mockResolvedValue(user);
       mockTokenStorage.getToken.mockResolvedValue('valid-jwt-token');
 
       const result = await authPipeline.checkSessionTimeout('valid-jwt-token');
-      
+
       expect(result).toBe(true); // Session has timed out
       expect(mockSupabase.auth.refreshSession).toHaveBeenCalled();
     });
@@ -213,14 +213,14 @@ describe('Authentication and Authorization Pipeline', () => {
         id: 'user-007',
         email: 'user@procura.com',
         role: 'user',
-        session_expires_at: new Date(Date.now() + 300000).toISOString() // Expires in 5 minutes
+        session_expires_at: new Date(Date.now() + 300000).toISOString(), // Expires in 5 minutes
       };
 
       mockSupabase.auth.getUser.mockResolvedValue(user);
       mockTokenStorage.getToken.mockResolvedValue('valid-jwt-token');
 
       const result = await authPipeline.checkSessionTimeout('valid-jwt-token');
-      
+
       expect(result).toBe(false); // Session still valid
       expect(mockSupabase.auth.extendSession).toHaveBeenCalled();
     });
@@ -230,7 +230,7 @@ describe('Authentication and Authorization Pipeline', () => {
         id: 'user-008',
         email: 'user@procura.com',
         role: 'user',
-        session_expires_at: new Date(Date.now() + 300000).toISOString()
+        session_expires_at: new Date(Date.now() + 300000).toISOString(),
       };
 
       mockSupabase.auth.getUser.mockResolvedValue(user);
@@ -240,7 +240,7 @@ describe('Authentication and Authorization Pipeline', () => {
       mockSupabase.auth.extendSession.mockRejectedValue(new Error('Network error'));
 
       const result = await authPipeline.checkSessionTimeout('valid-jwt-token');
-      
+
       expect(result).toBe(false); // Still valid, but extension failed
       expect(mockSupabase.auth.extendSession).toHaveBeenCalled();
     });
@@ -258,17 +258,17 @@ describe('Authentication and Authorization Pipeline', () => {
         role: 'user',
         session_expires_at: new Date(Date.now() + 3600000).toISOString(),
         mfa_enabled: true,
-        mfa_passed: false
+        mfa_passed: false,
       };
 
       mockSupabase.auth.getUser.mockResolvedValue(user);
       mockTokenStorage.getToken.mockResolvedValue('valid-jwt-token');
 
       const result = await authPipeline.canPerformSensitiveOperation('valid-jwt-token');
-      
+
       expect(result).toEqual({
         allowed: false,
-        reason: 'MFA required for sensitive operations'
+        reason: 'MFA required for sensitive operations',
       });
       expect(mockSupabase.auth.verifyMFASecret).toHaveBeenCalled();
     });
@@ -280,17 +280,17 @@ describe('Authentication and Authorization Pipeline', () => {
         role: 'user',
         session_expires_at: new Date(Date.now() + 3600000).toISOString(),
         mfa_enabled: true,
-        mfa_passed: true
+        mfa_passed: true,
       };
 
       mockSupabase.auth.getUser.mockResolvedValue(user);
       mockTokenStorage.getToken.mockResolvedValue('valid-jwt-token');
 
       const result = await authPipeline.canPerformSensitiveOperation('valid-jwt-token');
-      
+
       expect(result).toEqual({
         allowed: true,
-        reason: 'MFA verified'
+        reason: 'MFA verified',
       });
     });
 
@@ -301,7 +301,7 @@ describe('Authentication and Authorization Pipeline', () => {
         role: 'user',
         session_expires_at: new Date(Date.now() + 3600000).toISOString(),
         mfa_enabled: true,
-        mfa_passed: false
+        mfa_passed: false,
       };
 
       mockSupabase.auth.getUser.mockResolvedValue(user);
@@ -311,10 +311,10 @@ describe('Authentication and Authorization Pipeline', () => {
       mockSupabase.auth.verifyMFASecret.mockRejectedValue(new Error('Invalid MFA code'));
 
       const result = await authPipeline.canPerformSensitiveOperation('valid-jwt-token');
-      
+
       expect(result).toEqual({
         allowed: false,
-        reason: 'MFA verification failed'
+        reason: 'MFA verification failed',
       });
     });
   });
@@ -329,7 +329,7 @@ describe('Authentication and Authorization Pipeline', () => {
         id: 'user-012',
         email: 'user@procura.com',
         role: 'user',
-        session_expires_at: new Date(Date.now() + 3600000).toISOString()
+        session_expires_at: new Date(Date.now() + 3600000).toISOString(),
       };
 
       mockSupabase.auth.getUser.mockResolvedValue(user);
@@ -338,11 +338,8 @@ describe('Authentication and Authorization Pipeline', () => {
       // Mock valid CSRF token
       mockTokenStorage.getCSRFToken.mockResolvedValue('valid-csrf-token');
 
-      const result = await authPipeline.validateCSRFToken(
-        'valid-jwt-token', 
-        'valid-csrf-token'
-      );
-      
+      const result = await authPipeline.validateCSRFToken('valid-jwt-token', 'valid-csrf-token');
+
       expect(result).toBe(true);
       expect(mockTokenStorage.getCSRFToken).toHaveBeenCalled();
     });
@@ -352,7 +349,7 @@ describe('Authentication and Authorization Pipeline', () => {
         id: 'user-013',
         email: 'user@procura.com',
         role: 'user',
-        session_expires_at: new Date(Date.now() + 3600000).toISOString()
+        session_expires_at: new Date(Date.now() + 3600000).toISOString(),
       };
 
       mockSupabase.auth.getUser.mockResolvedValue(user);
@@ -361,11 +358,8 @@ describe('Authentication and Authorization Pipeline', () => {
       // No CSRF token
       mockTokenStorage.getCSRFToken.mockResolvedValue(null);
 
-      const result = await authPipeline.validateCSRFToken(
-        'valid-jwt-token', 
-        null
-      );
-      
+      const result = await authPipeline.validateCSRFToken('valid-jwt-token', null);
+
       expect(result).toBe(false);
     });
 
@@ -374,20 +368,17 @@ describe('Authentication and Authorization Pipeline', () => {
         id: 'user-014',
         email: 'user@procura.com',
         role: 'user',
-        session_expires_at: new Date(Date.now() + 3600000).toISOString()
+        session_expires_at: new Date(Date.now() + 3600000).toISOString(),
       };
 
       mockSupabase.auth.getUser.mockResolvedValue(user);
       mockTokenStorage.getToken.mockResolvedValue('valid-jwt-token');
 
-      // Mock invalid CSRF token
-      mockTokenStorage.getCSRFToken.mockResolvedValue('invalid-csrf-token');
+      // Stored token is valid; client sends a different (invalid) token
+      mockTokenStorage.getCSRFToken.mockResolvedValue('valid-csrf-token');
 
-      const result = await authPipeline.validateCSRFToken(
-        'valid-jwt-token', 
-        'invalid-csrf-token'
-      );
-      
+      const result = await authPipeline.validateCSRFToken('valid-jwt-token', 'invalid-csrf-token');
+
       expect(result).toBe(false);
     });
   });
@@ -403,21 +394,21 @@ describe('Authentication and Authorization Pipeline', () => {
 
       for (let i = 0; i < maxAttempts + 2; i++) {
         const result = await authPipeline.attemptLogin('user@procura.com', 'wrong-password');
-        
+
         if (result.success) {
           break;
         }
-        
+
         failedAttempts++;
-        
+
         if (failedAttempts >= maxAttempts) {
           expect(result).toEqual({
             success: false,
-            reason: 'Too many failed login attempts'
+            reason: 'Too many failed login attempts',
           });
         }
       }
-      
+
       expect(failedAttempts).toBe(maxAttempts + 2);
       expect(authPipeline.isRateLimited('user@procura.com')).toBe(true);
     });
@@ -425,12 +416,12 @@ describe('Authentication and Authorization Pipeline', () => {
     it('resets rate limit after timeout', async () => {
       // Simulate rate limit reached
       authPipeline.setRateLimit('user@procura.com', true);
-      
+
       expect(authPipeline.isRateLimited('user@procura.com')).toBe(true);
-      
+
       // Wait for rate limit reset (mocked to be immediate for testing)
       authPipeline.resetRateLimit('user@procura.com');
-      
+
       expect(authPipeline.isRateLimited('user@procura.com')).toBe(false);
     });
   });

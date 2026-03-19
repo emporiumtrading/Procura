@@ -11,31 +11,51 @@ test.describe('Sidebar Navigation', () => {
     await expect(sidebar).toBeVisible();
 
     // All main nav items should be present
-    for (const label of ['Dashboard', 'Submissions', 'Documents', 'Follow', 'Correspondence', 'Audit', 'Settings']) {
+    for (const label of [
+      'Dashboard',
+      'Submissions',
+      'Documents',
+      'Follow',
+      'Correspondence',
+      'Audit',
+      'Settings',
+    ]) {
       await expect(page.getByText(new RegExp(label, 'i')).first()).toBeVisible();
     }
   });
 
   test('navigate to Submissions page', async ({ page }) => {
-    await page.getByText(/submissions/i).first().click();
+    await page
+      .getByText(/submissions/i)
+      .first()
+      .click();
     await page.waitForURL(/submissions/);
     await expect(page.getByText(/submission|queue|proposals/i).first()).toBeVisible();
   });
 
   test('navigate to Document Library page', async ({ page }) => {
-    await page.getByText(/document/i).first().click();
+    await page
+      .getByText(/document/i)
+      .first()
+      .click();
     await page.waitForURL(/documents/);
     await expect(page.getByText(/document library|upload/i).first()).toBeVisible();
   });
 
   test('navigate to Follow-ups page', async ({ page }) => {
-    await page.getByText(/follow/i).first().click();
+    await page
+      .getByText(/follow/i)
+      .first()
+      .click();
     await page.waitForURL(/follow/);
     await expect(page.getByText(/follow-up|application/i).first()).toBeVisible();
   });
 
   test('navigate to Correspondence page', async ({ page }) => {
-    await page.getByText(/correspondence/i).first().click();
+    await page
+      .getByText(/correspondence/i)
+      .first()
+      .click();
     await page.waitForURL(/correspondence/);
     await expect(page.getByText(/correspondence|award/i).first()).toBeVisible();
   });
@@ -47,7 +67,10 @@ test.describe('Sidebar Navigation', () => {
   });
 
   test('navigate to Settings page', async ({ page }) => {
-    await page.getByText(/settings/i).first().click();
+    await page
+      .getByText(/settings/i)
+      .first()
+      .click();
     await page.waitForURL(/settings/);
     await expect(page.getByText(/settings|configuration|api key/i).first()).toBeVisible();
   });

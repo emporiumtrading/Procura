@@ -187,25 +187,3 @@ This will:
 ---
 
 ## Adding new tests
-
-- **Backend (pytest)**:
-  - Place new files under `backend/tests/` with a `test_*.py` naming convention.
-  - Use the shared fixtures from `conftest.py`:
-    - Inject `test_app` when you need a FastAPI `TestClient`.
-    - Use `mock_supabase` and `MockSupabaseClient` when you need to control database responses.
-  - Keep tests deterministic by avoiding real external API calls; prefer mocks and the Supabase test client.
-
-- **Frontend (Vitest)**:
-  - Place new tests alongside existing ones under `tests/**` and follow the `*.test.ts` / `*.test.tsx` naming.
-  - Reuse helpers from `tests/setup.ts` and `tests/mocks/*`.
-  - Target React components with `@testing-library/react` and user workflows with `@testing-library/user-event`.
-
-- **E2E (Playwright)**:
-  - Add new specs to `tests/ui/` and follow the existing patterns for:
-    - Navigating via `page.goto(baseURL + '/some-route')`.
-    - Interacting with UI elements using locators.
-    - Asserting on text/ARIA roles rather than brittle selectors when possible.
-  - Keep external dependencies mocked via the `route` hook in `playwright.config.ts` to ensure deterministic runs.
-
-This document should give you a **single place to understand how tests are structured, how to run them, and where to add new coverage** across the backend, frontend, and end-to-end layers.
-

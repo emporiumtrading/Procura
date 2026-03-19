@@ -1,8 +1,20 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Building2, Save, Plus, Trash2, ChevronDown, ChevronUp,
-  Info, CheckCircle, AlertCircle, Loader2, Tag, DollarSign,
-  Award, Briefcase, Users, MapPin,
+  Building2,
+  Save,
+  Plus,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  Info,
+  CheckCircle,
+  AlertCircle,
+  Loader2,
+  Tag,
+  DollarSign,
+  Award,
+  Briefcase,
+  Users,
 } from 'lucide-react';
 import api from '../lib/api';
 
@@ -82,31 +94,52 @@ const COMMON_NAICS_IT = [
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function Section({ title, icon, children, defaultOpen = true }: {
-  title: string; icon: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean;
+function Section({
+  title,
+  icon,
+  children,
+  defaultOpen = true,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="border border-gray-200 rounded-xl overflow-hidden">
       <button
         type="button"
-        onClick={() => setOpen(o => !o)}
+        onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center justify-between px-5 py-4 bg-white hover:bg-gray-50 transition-colors"
       >
         <div className="flex items-center gap-2 font-semibold text-gray-900 text-sm">
           {icon}
           {title}
         </div>
-        {open ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+        {open ? (
+          <ChevronUp size={16} className="text-gray-400" />
+        ) : (
+          <ChevronDown size={16} className="text-gray-400" />
+        )}
       </button>
       {open && <div className="px-5 pb-5 pt-2 bg-white space-y-4">{children}</div>}
     </div>
   );
 }
 
-function TagInput({ label, values, onChange, placeholder, suggestions = [] }: {
-  label: string; values: string[]; onChange: (v: string[]) => void;
-  placeholder?: string; suggestions?: string[];
+function TagInput({
+  label,
+  values,
+  onChange,
+  placeholder,
+  suggestions = [],
+}: {
+  label: string;
+  values: string[];
+  onChange: (v: string[]) => void;
+  placeholder?: string;
+  suggestions?: string[];
 }) {
   const [input, setInput] = useState('');
 
@@ -118,61 +151,92 @@ function TagInput({ label, values, onChange, placeholder, suggestions = [] }: {
     setInput('');
   };
 
-  const remove = (v: string) => onChange(values.filter(x => x !== v));
+  const remove = (v: string) => onChange(values.filter((x) => x !== v));
 
   return (
     <div>
-      <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">{label}</label>
+      <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+        {label}
+      </label>
       <div className="flex flex-wrap gap-1.5 mb-2">
-        {values.map(v => (
-          <span key={v} className="inline-flex items-center gap-1 bg-gray-900 text-white text-xs rounded-full px-3 py-1">
+        {values.map((v) => (
+          <span
+            key={v}
+            className="inline-flex items-center gap-1 bg-gray-900 text-white text-xs rounded-full px-3 py-1"
+          >
             {v}
-            <button type="button" onClick={() => remove(v)} className="hover:text-red-300 ml-0.5">×</button>
+            <button type="button" onClick={() => remove(v)} className="hover:text-red-300 ml-0.5">
+              ×
+            </button>
           </span>
         ))}
       </div>
       <div className="flex gap-2">
         <input
           value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); add(input); } }}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ',') {
+              e.preventDefault();
+              add(input);
+            }
+          }}
           placeholder={placeholder || 'Type and press Enter'}
           className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900"
         />
-        <button type="button" onClick={() => add(input)} className="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+        <button
+          type="button"
+          onClick={() => add(input)}
+          className="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+        >
           <Plus size={14} />
         </button>
       </div>
       {suggestions.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-2">
-          {suggestions.filter(s => !values.includes(s)).map(s => (
-            <button key={s} type="button" onClick={() => add(s)}
-              className="text-xs text-gray-500 border border-gray-200 rounded-full px-2 py-0.5 hover:border-gray-900 hover:text-gray-900 transition-colors">
-              + {s}
-            </button>
-          ))}
+          {suggestions
+            .filter((s) => !values.includes(s))
+            .map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => add(s)}
+                className="text-xs text-gray-500 border border-gray-200 rounded-full px-2 py-0.5 hover:border-gray-900 hover:text-gray-900 transition-colors"
+              >
+                + {s}
+              </button>
+            ))}
         </div>
       )}
     </div>
   );
 }
 
-function CheckboxGroup({ label, options, selected, onChange }: {
+function CheckboxGroup({
+  label,
+  options,
+  selected,
+  onChange,
+}: {
   label: string;
   options: { value: string; label: string }[];
   selected: string[];
   onChange: (v: string[]) => void;
 }) {
   const toggle = (val: string) => {
-    selected.includes(val)
-      ? onChange(selected.filter(x => x !== val))
-      : onChange([...selected, val]);
+    if (selected.includes(val)) {
+      onChange(selected.filter((x) => x !== val));
+    } else {
+      onChange([...selected, val]);
+    }
   };
   return (
     <div>
-      <label className="block text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">{label}</label>
+      <label className="block text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">
+        {label}
+      </label>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {options.map(opt => (
+        {options.map((opt) => (
           <label key={opt.value} className="flex items-center gap-2 cursor-pointer group">
             <input
               type="checkbox"
@@ -200,14 +264,22 @@ const CompanyProfile: React.FC = () => {
 
   // Past performance edit state
   const [ppDraft, setPpDraft] = useState<PastPerformanceEntry>({
-    title: '', agency: '', contract_number: '', value: undefined, period: '', description: '',
+    title: '',
+    agency: '',
+    contract_number: '',
+    value: undefined,
+    period: '',
+    description: '',
   });
   const [showPpForm, setShowPpForm] = useState(false);
 
-  const setField = useCallback(<K extends keyof CompanyProfileData>(key: K, value: CompanyProfileData[K]) => {
-    setProfile(p => ({ ...p, [key]: value }));
-    setDirty(true);
-  }, []);
+  const setField = useCallback(
+    <K extends keyof CompanyProfileData>(key: K, value: CompanyProfileData[K]) => {
+      setProfile((p) => ({ ...p, [key]: value }));
+      setDirty(true);
+    },
+    []
+  );
 
   useEffect(() => {
     (async () => {
@@ -240,12 +312,22 @@ const CompanyProfile: React.FC = () => {
   const addPastPerf = () => {
     if (!ppDraft.title || !ppDraft.agency) return;
     setField('past_performance', [...profile.past_performance, { ...ppDraft }]);
-    setPpDraft({ title: '', agency: '', contract_number: '', value: undefined, period: '', description: '' });
+    setPpDraft({
+      title: '',
+      agency: '',
+      contract_number: '',
+      value: undefined,
+      period: '',
+      description: '',
+    });
     setShowPpForm(false);
   };
 
   const removePastPerf = (idx: number) => {
-    setField('past_performance', profile.past_performance.filter((_, i) => i !== idx));
+    setField(
+      'past_performance',
+      profile.past_performance.filter((_, i) => i !== idx)
+    );
   };
 
   if (loading) {
@@ -264,7 +346,9 @@ const CompanyProfile: React.FC = () => {
           <Building2 size={22} className="text-gray-900" />
           <div>
             <h1 className="text-lg font-bold text-gray-900">Company Profile</h1>
-            <p className="text-xs text-gray-500">Used by AI to personalize opportunity scoring and proposal generation</p>
+            <p className="text-xs text-gray-500">
+              Used by AI to personalize opportunity scoring and proposal generation
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -296,33 +380,55 @@ const CompanyProfile: React.FC = () => {
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto p-6 space-y-4 max-w-3xl w-full mx-auto">
-
         {/* Basic Info */}
         <Section title="Company Identity" icon={<Building2 size={16} />}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
-              <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Company Name *</label>
-              <input value={profile.company_name} onChange={e => setField('company_name', e.target.value)}
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                Company Name *
+              </label>
+              <input
+                value={profile.company_name}
+                onChange={(e) => setField('company_name', e.target.value)}
                 className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900"
-                placeholder="Acme Technologies LLC" />
+                placeholder="Acme Technologies LLC"
+              />
             </div>
             {[
               { key: 'cage_code' as const, label: 'CAGE Code', placeholder: '1ABC2' },
-              { key: 'uei_number' as const, label: 'UEI Number (SAM.gov)', placeholder: 'ABCDE1234567' },
+              {
+                key: 'uei_number' as const,
+                label: 'UEI Number (SAM.gov)',
+                placeholder: 'ABCDE1234567',
+              },
               { key: 'duns_number' as const, label: 'DUNS Number', placeholder: '123456789' },
-              { key: 'primary_location' as const, label: 'Primary Location', placeholder: 'Washington, DC' },
-            ].map(f => (
+              {
+                key: 'primary_location' as const,
+                label: 'Primary Location',
+                placeholder: 'Washington, DC',
+              },
+            ].map((f) => (
               <div key={f.key}>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">{f.label}</label>
-                <input value={(profile[f.key] as string) || ''} onChange={e => setField(f.key, e.target.value)}
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                  {f.label}
+                </label>
+                <input
+                  value={(profile[f.key] as string) || ''}
+                  onChange={(e) => setField(f.key, e.target.value)}
                   className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900"
-                  placeholder={f.placeholder} />
+                  placeholder={f.placeholder}
+                />
               </div>
             ))}
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Business Size</label>
-              <select value={profile.size_standard} onChange={e => setField('size_standard', e.target.value)}
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900">
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                Business Size
+              </label>
+              <select
+                value={profile.size_standard}
+                onChange={(e) => setField('size_standard', e.target.value)}
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900"
+              >
                 <option value="small">Small Business</option>
                 <option value="large">Large Business</option>
                 <option value="micro">Micro Business</option>
@@ -333,24 +439,35 @@ const CompanyProfile: React.FC = () => {
 
         {/* NAICS Codes */}
         <Section title="NAICS Codes" icon={<Tag size={16} />}>
-          <p className="text-xs text-gray-500">Add your registered NAICS codes. AI will only score opportunities whose NAICS matches one of these.</p>
+          <p className="text-xs text-gray-500">
+            Add your registered NAICS codes. AI will only score opportunities whose NAICS matches
+            one of these.
+          </p>
           <TagInput
             label="Your NAICS Codes"
             values={profile.naics_codes}
-            onChange={v => setField('naics_codes', v)}
+            onChange={(v) => setField('naics_codes', v)}
             placeholder="e.g. 541511"
-            suggestions={COMMON_NAICS_IT.filter(n => !profile.naics_codes.includes(n.code)).map(n => n.code)}
+            suggestions={COMMON_NAICS_IT.filter((n) => !profile.naics_codes.includes(n.code)).map(
+              (n) => n.code
+            )}
           />
           {COMMON_NAICS_IT.length > 0 && (
             <div className="flex flex-wrap gap-2 mt-1">
-              {COMMON_NAICS_IT.map(n => (
-                <button key={n.code} type="button"
-                  onClick={() => !profile.naics_codes.includes(n.code) && setField('naics_codes', [...profile.naics_codes, n.code])}
+              {COMMON_NAICS_IT.map((n) => (
+                <button
+                  key={n.code}
+                  type="button"
+                  onClick={() =>
+                    !profile.naics_codes.includes(n.code) &&
+                    setField('naics_codes', [...profile.naics_codes, n.code])
+                  }
                   className={`text-xs rounded-full px-2.5 py-1 border transition-colors ${
                     profile.naics_codes.includes(n.code)
                       ? 'bg-gray-900 text-white border-gray-900'
                       : 'border-gray-200 text-gray-600 hover:border-gray-900 hover:text-gray-900'
-                  }`}>
+                  }`}
+                >
                   {n.code} — {n.label.split('—')[1]?.trim()}
                 </button>
               ))}
@@ -360,12 +477,15 @@ const CompanyProfile: React.FC = () => {
 
         {/* Certifications */}
         <Section title="Certifications & Set-Aside Eligibility" icon={<Award size={16} />}>
-          <p className="text-xs text-gray-500">Select all certifications your company holds. Opportunities with non-matching set-asides will receive lower fit scores.</p>
+          <p className="text-xs text-gray-500">
+            Select all certifications your company holds. Opportunities with non-matching set-asides
+            will receive lower fit scores.
+          </p>
           <CheckboxGroup
             label="Active Certifications"
             options={CERT_OPTIONS}
             selected={profile.certifications}
-            onChange={v => setField('certifications', v)}
+            onChange={(v) => setField('certifications', v)}
           />
         </Section>
 
@@ -377,36 +497,65 @@ const CompanyProfile: React.FC = () => {
             </label>
             <textarea
               value={profile.capabilities}
-              onChange={e => setField('capabilities', e.target.value)}
+              onChange={(e) => setField('capabilities', e.target.value)}
               rows={5}
               placeholder="Describe your company's core technical capabilities, areas of expertise, differentiators, and the types of government work you have performed..."
               className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
             />
-            <p className="text-xs text-gray-400 mt-1">{profile.capabilities.length} characters — more detail leads to better AI scoring</p>
+            <p className="text-xs text-gray-400 mt-1">
+              {profile.capabilities.length} characters — more detail leads to better AI scoring
+            </p>
           </div>
           <TagInput
             label="Industry Keywords"
             values={profile.keywords}
-            onChange={v => setField('keywords', v)}
+            onChange={(v) => setField('keywords', v)}
             placeholder="e.g. cloud migration, cybersecurity, DevSecOps"
-            suggestions={['cloud', 'cybersecurity', 'DevSecOps', 'Agile', 'AI/ML', 'data analytics', 'zero trust', 'SIEM', 'AWS', 'Azure', 'GCP', 'Kubernetes', 'microservices']}
+            suggestions={[
+              'cloud',
+              'cybersecurity',
+              'DevSecOps',
+              'Agile',
+              'AI/ML',
+              'data analytics',
+              'zero trust',
+              'SIEM',
+              'AWS',
+              'Azure',
+              'GCP',
+              'Kubernetes',
+              'microservices',
+            ]}
           />
         </Section>
 
         {/* Past Performance */}
         <Section title="Past Performance" icon={<Users size={16} />} defaultOpen={false}>
-          <p className="text-xs text-gray-500">Past contracts are used by AI to match similar opportunities and generate proposal narratives.</p>
+          <p className="text-xs text-gray-500">
+            Past contracts are used by AI to match similar opportunities and generate proposal
+            narratives.
+          </p>
           <div className="space-y-2">
             {profile.past_performance.map((pp, idx) => (
-              <div key={idx} className="flex items-start justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 text-sm">
+              <div
+                key={idx}
+                className="flex items-start justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 text-sm"
+              >
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-gray-900 truncate">{pp.title}</p>
                   <p className="text-gray-500 text-xs mt-0.5">
-                    {pp.agency}{pp.value ? ` · $${pp.value.toLocaleString()}` : ''}{pp.period ? ` · ${pp.period}` : ''}
+                    {pp.agency}
+                    {pp.value ? ` · $${pp.value.toLocaleString()}` : ''}
+                    {pp.period ? ` · ${pp.period}` : ''}
                   </p>
-                  {pp.description && <p className="text-gray-400 text-xs mt-1 truncate">{pp.description}</p>}
+                  {pp.description && (
+                    <p className="text-gray-400 text-xs mt-1 truncate">{pp.description}</p>
+                  )}
                 </div>
-                <button onClick={() => removePastPerf(idx)} className="ml-3 text-gray-400 hover:text-red-500 shrink-0">
+                <button
+                  onClick={() => removePastPerf(idx)}
+                  className="ml-3 text-gray-400 hover:text-red-500 shrink-0"
+                >
                   <Trash2 size={14} />
                 </button>
               </div>
@@ -417,57 +566,79 @@ const CompanyProfile: React.FC = () => {
             <div className="border border-gray-200 rounded-lg p-4 space-y-3 bg-gray-50">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
-                  { key: 'title', label: 'Contract Title *', placeholder: 'Cloud Migration Support' },
+                  {
+                    key: 'title',
+                    label: 'Contract Title *',
+                    placeholder: 'Cloud Migration Support',
+                  },
                   { key: 'agency', label: 'Agency *', placeholder: 'DoD / DISA' },
-                  { key: 'contract_number', label: 'Contract Number', placeholder: 'W52P1J-23-C-0001' },
+                  {
+                    key: 'contract_number',
+                    label: 'Contract Number',
+                    placeholder: 'W52P1J-23-C-0001',
+                  },
                   { key: 'period', label: 'Period of Performance', placeholder: '2022-2024' },
                   { key: 'naics_code', label: 'NAICS Code', placeholder: '541512' },
-                ].map(f => (
+                ].map((f) => (
                   <div key={f.key}>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">{f.label}</label>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
+                      {f.label}
+                    </label>
                     <input
                       value={(ppDraft as any)[f.key] || ''}
-                      onChange={e => setPpDraft(d => ({ ...d, [f.key]: e.target.value }))}
+                      onChange={(e) => setPpDraft((d) => ({ ...d, [f.key]: e.target.value }))}
                       placeholder={f.placeholder}
                       className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900"
                     />
                   </div>
                 ))}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Contract Value ($)</label>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
+                    Contract Value ($)
+                  </label>
                   <input
                     type="number"
                     value={ppDraft.value || ''}
-                    onChange={e => setPpDraft(d => ({ ...d, value: Number(e.target.value) || undefined }))}
+                    onChange={(e) =>
+                      setPpDraft((d) => ({ ...d, value: Number(e.target.value) || undefined }))
+                    }
                     placeholder="500000"
                     className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Description</label>
+                <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
+                  Description
+                </label>
                 <textarea
                   rows={2}
                   value={ppDraft.description || ''}
-                  onChange={e => setPpDraft(d => ({ ...d, description: e.target.value }))}
+                  onChange={(e) => setPpDraft((d) => ({ ...d, description: e.target.value }))}
                   placeholder="Brief description of work performed..."
                   className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
                 />
               </div>
               <div className="flex gap-2">
-                <button onClick={addPastPerf}
-                  className="flex items-center gap-1.5 bg-gray-900 text-white text-sm px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors">
+                <button
+                  onClick={addPastPerf}
+                  className="flex items-center gap-1.5 bg-gray-900 text-white text-sm px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+                >
                   <Plus size={14} /> Add Entry
                 </button>
-                <button onClick={() => setShowPpForm(false)}
-                  className="text-sm px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                <button
+                  onClick={() => setShowPpForm(false)}
+                  className="text-sm px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                >
                   Cancel
                 </button>
               </div>
             </div>
           ) : (
-            <button onClick={() => setShowPpForm(true)}
-              className="flex items-center gap-2 text-sm text-gray-600 border border-dashed border-gray-300 rounded-lg px-4 py-2.5 hover:border-gray-900 hover:text-gray-900 transition-colors w-full justify-center">
+            <button
+              onClick={() => setShowPpForm(true)}
+              className="flex items-center gap-2 text-sm text-gray-600 border border-dashed border-gray-300 rounded-lg px-4 py-2.5 hover:border-gray-900 hover:text-gray-900 transition-colors w-full justify-center"
+            >
               <Plus size={14} /> Add Past Performance Entry
             </button>
           )}
@@ -477,21 +648,29 @@ const CompanyProfile: React.FC = () => {
         <Section title="Bidding Preferences" icon={<DollarSign size={16} />} defaultOpen={false}>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Min Contract Value ($)</label>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                Min Contract Value ($)
+              </label>
               <input
                 type="number"
                 value={profile.min_contract_value || ''}
-                onChange={e => setField('min_contract_value', Number(e.target.value) || undefined)}
+                onChange={(e) =>
+                  setField('min_contract_value', Number(e.target.value) || undefined)
+                }
                 placeholder="25000"
                 className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Max Contract Value ($)</label>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                Max Contract Value ($)
+              </label>
               <input
                 type="number"
                 value={profile.max_contract_value || ''}
-                onChange={e => setField('max_contract_value', Number(e.target.value) || undefined)}
+                onChange={(e) =>
+                  setField('max_contract_value', Number(e.target.value) || undefined)
+                }
                 placeholder="10000000"
                 className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-900"
               />
@@ -500,14 +679,28 @@ const CompanyProfile: React.FC = () => {
           <TagInput
             label="Preferred Agencies"
             values={profile.preferred_agencies}
-            onChange={v => setField('preferred_agencies', v)}
+            onChange={(v) => setField('preferred_agencies', v)}
             placeholder="e.g. DoD, DHS, HHS"
-            suggestions={['DoD', 'DHS', 'HHS', 'VA', 'GSA', 'NASA', 'DOJ', 'Treasury', 'USAF', 'Army', 'Navy', 'DISA', 'CISA']}
+            suggestions={[
+              'DoD',
+              'DHS',
+              'HHS',
+              'VA',
+              'GSA',
+              'NASA',
+              'DOJ',
+              'Treasury',
+              'USAF',
+              'Army',
+              'Navy',
+              'DISA',
+              'CISA',
+            ]}
           />
           <TagInput
             label="Excluded Set-Asides (skip these)"
             values={profile.excluded_set_asides}
-            onChange={v => setField('excluded_set_asides', v)}
+            onChange={(v) => setField('excluded_set_asides', v)}
             placeholder="e.g. 8(a) (if you don't have this cert)"
             suggestions={['8(a)', 'HUBZone', 'SDVOSB', 'WOSB']}
           />
@@ -521,10 +714,15 @@ const CompanyProfile: React.FC = () => {
               Personalized AI scoring is active
             </h3>
             <p className="text-xs text-gray-400 leading-relaxed">
-              AI will now score opportunities against <span className="text-white font-medium">{profile.company_name}</span>'s
+              AI will now score opportunities against{' '}
+              <span className="text-white font-medium">{profile.company_name}</span>'s
               {profile.naics_codes.length > 0 && <> {profile.naics_codes.length} NAICS codes,</>}
-              {profile.certifications.length > 0 && <> {profile.certifications.join(', ')} certifications,</>}
-              {' '}and your capability statement. Use <span className="text-white font-medium">Force Refresh</span> on any opportunity to re-score with this profile.
+              {profile.certifications.length > 0 && (
+                <> {profile.certifications.join(', ')} certifications,</>
+              )}{' '}
+              and your capability statement. Use{' '}
+              <span className="text-white font-medium">Force Refresh</span> on any opportunity to
+              re-score with this profile.
             </p>
           </div>
         )}

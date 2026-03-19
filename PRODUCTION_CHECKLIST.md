@@ -17,16 +17,19 @@
 **Time: 2 minutes**
 
 1. **Open Supabase Dashboard:**
+
    ```
    https://supabase.com/dashboard
    ```
 
 2. **Navigate to:**
+
    ```
    Your Project → SQL Editor
    ```
 
 3. **Copy and paste this file:**
+
    ```
    supabase/migrations/12_production_auth_fix.sql
    ```
@@ -34,6 +37,7 @@
 4. **Click "RUN"**
 
 5. **Verify success:**
+
    ```sql
    -- Run this query to verify:
    SELECT
@@ -51,11 +55,13 @@
 ### Step 2: Deploy Frontend
 
 **Option A: Vercel (Automatic)**
+
 - ✅ Already deployed automatically when you pushed to `main`
 - Check: https://vercel.com/dashboard → Your Project → Deployments
 - Wait for "Ready" status
 
 **Option B: Manual**
+
 ```bash
 npm run build
 # Upload dist/ to your hosting
@@ -80,11 +86,13 @@ Run these tests **immediately** after deployment:
 4. Click **"Create Account"**
 
 **✅ Expected:**
+
 - Message: "Check your email for a confirmation link!"
 - NO errors in console
 - NO "Database error saving new user"
 
 **❌ If you see errors:**
+
 - Check Supabase logs: Dashboard → Logs
 - Verify migration ran successfully
 - Check console for specific error
@@ -98,11 +106,13 @@ Run these tests **immediately** after deployment:
 3. Click **"Sign In"**
 
 **✅ Expected:**
+
 - Redirects to dashboard within 2 seconds
 - NO infinite spinner
 - NO errors in console
 
 **❌ If login hangs:**
+
 - Hard refresh: `Ctrl+Shift+R` (or `Cmd+Shift+R`)
 - Clear localStorage: DevTools → Application → Local Storage → Clear
 - Try again
@@ -114,16 +124,19 @@ Run these tests **immediately** after deployment:
 1. Try signup with weak password: `"password"`
 
 **✅ Expected:**
+
 - Error: "Password must be at least 12 characters"
 
 2. Try: `"Password123"`
 
 **✅ Expected:**
+
 - Error: "Password must contain special characters"
 
 3. Try: `"ValidPass123!@#"`
 
 **✅ Expected:**
+
 - Proceeds to success message
 
 ---
@@ -133,6 +146,7 @@ Run these tests **immediately** after deployment:
 1. Enter wrong password 3 times in a row
 
 **✅ Expected:**
+
 - After 3rd attempt: "Too many attempts. Please wait X seconds"
 - Login button disabled during cooldown
 - Cooldown timer counts down
@@ -154,6 +168,7 @@ LEFT JOIN public.profiles p ON p.id = au.id;
 ```
 
 **✅ Expected:**
+
 - `missing` = 0
 
 ---
@@ -163,16 +178,20 @@ LEFT JOIN public.profiles p ON p.id = au.id;
 ### Check These Metrics Daily (First Week)
 
 1. **Signup Success Rate**
+
    ```
    Supabase Dashboard → Auth → Users
    ```
+
    - New users appearing without gaps
    - No error spikes in logs
 
 2. **Error Logs**
+
    ```
    Supabase Dashboard → Logs → Filter: ERROR
    ```
+
    - No "foreign_key_violation"
    - No "AbortError: signal is aborted"
 
@@ -187,6 +206,7 @@ LEFT JOIN public.profiles p ON p.id = au.id;
 Run these **once per day** for the first week:
 
 ### Query 1: User-Profile Sync
+
 ```sql
 SELECT
     (SELECT COUNT(*) FROM auth.users) as auth_users,
@@ -199,6 +219,7 @@ SELECT
 ```
 
 ### Query 2: Recent Signups
+
 ```sql
 SELECT
     au.email,
@@ -217,6 +238,7 @@ ORDER BY au.created_at DESC;
 ### Issue: Users can't sign up
 
 **Check:**
+
 1. Supabase logs for errors
 2. Run migration verification query (Step 1.5 above)
 3. Check if trigger exists:
@@ -225,6 +247,7 @@ ORDER BY au.created_at DESC;
    ```
 
 **Fix:**
+
 - Rerun migration: `12_production_auth_fix.sql`
 
 ---
@@ -232,11 +255,13 @@ ORDER BY au.created_at DESC;
 ### Issue: Users can't login
 
 **Check:**
+
 1. Browser console for errors
 2. Network tab for failed requests
 3. Clear browser cache/localStorage
 
 **Fix:**
+
 - Verify frontend deployed correctly
 - Check Vercel deployment status
 - Force redeploy if needed
@@ -246,6 +271,7 @@ ORDER BY au.created_at DESC;
 ### Issue: Missing profiles
 
 **Check:**
+
 ```sql
 SELECT au.id, au.email, au.created_at
 FROM auth.users au
@@ -254,6 +280,7 @@ WHERE p.id IS NULL;
 ```
 
 **Fix:**
+
 ```sql
 -- Backfill missing profiles
 INSERT INTO public.profiles (id, email, full_name, role, created_at, updated_at, last_active)
@@ -278,6 +305,7 @@ ON CONFLICT (id) DO NOTHING;
 If production is completely broken:
 
 ### Rollback Database
+
 ```sql
 ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_id_fkey;
 ALTER TABLE public.profiles
@@ -286,12 +314,14 @@ ALTER TABLE public.profiles
 ```
 
 ### Rollback Frontend
+
 ```bash
 git revert HEAD
 git push origin main
 ```
 
 **Or in Vercel:**
+
 - Dashboard → Deployments → Previous Deployment → "Promote to Production"
 
 ---

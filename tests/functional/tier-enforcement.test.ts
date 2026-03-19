@@ -25,7 +25,14 @@ describe('Subscription Tier Enforcement', () => {
     const features = {
       basic: ['dashboard', 'basic-filters'],
       pro: ['dashboard', 'basic-filters', 'advanced-filters', 'export-csv'],
-      enterprise: ['dashboard', 'basic-filters', 'advanced-filters', 'export-csv', 'api-access', 'bulk-operations']
+      enterprise: [
+        'dashboard',
+        'basic-filters',
+        'advanced-filters',
+        'export-csv',
+        'api-access',
+        'bulk-operations',
+      ],
     };
 
     it('allows basic tier users access to basic features', async () => {
@@ -34,19 +41,19 @@ describe('Subscription Tier Enforcement', () => {
         email: 'basic@procura.com',
         tier: 'basic',
         subscription_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
-        quota: { max_opportunities: 100, current_usage: 50 }
+        quota: { max_opportunities: 100, current_usage: 50 },
       };
 
       mockDatabase.getUser.mockResolvedValue(user);
       mockSession.getUser.mockResolvedValue(user);
 
       const result = await tierEnforcement.canAccessFeature('basic-filters', 'valid-jwt-token');
-      
+
       expect(result).toEqual({
         allowed: true,
-        reason: 'Basic tier has access to basic-filters'
+        reason: 'Basic tier has access to basic-filters',
       });
-      
+
       // Verify quota usage
       expect(mockDatabase.getQuotaUsage).toHaveBeenCalledWith('user-001');
     });
@@ -57,17 +64,17 @@ describe('Subscription Tier Enforcement', () => {
         email: 'basic@procura.com',
         tier: 'basic',
         subscription_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        quota: { max_opportunities: 100, current_usage: 50 }
+        quota: { max_opportunities: 100, current_usage: 50 },
       };
 
       mockDatabase.getUser.mockResolvedValue(user);
       mockSession.getUser.mockResolvedValue(user);
 
       const result = await tierEnforcement.canAccessFeature('advanced-filters', 'valid-jwt-token');
-      
+
       expect(result).toEqual({
         allowed: false,
-        reason: 'Basic tier not authorized for advanced-filters'
+        reason: 'Basic tier not authorized for advanced-filters',
       });
     });
 
@@ -77,17 +84,17 @@ describe('Subscription Tier Enforcement', () => {
         email: 'pro@procura.com',
         tier: 'pro',
         subscription_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        quota: { max_opportunities: 500, current_usage: 200 }
+        quota: { max_opportunities: 500, current_usage: 200 },
       };
 
       mockDatabase.getUser.mockResolvedValue(user);
       mockSession.getUser.mockResolvedValue(user);
 
       const result = await tierEnforcement.canAccessFeature('export-csv', 'valid-jwt-token');
-      
+
       expect(result).toEqual({
         allowed: true,
-        reason: 'Pro tier has access to export-csv'
+        reason: 'Pro tier has access to export-csv',
       });
     });
 
@@ -97,7 +104,7 @@ describe('Subscription Tier Enforcement', () => {
         email: 'enterprise@procura.com',
         tier: 'enterprise',
         subscription_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        quota: { max_opportunities: 10000, current_usage: 1000 }
+        quota: { max_opportunities: 10000, current_usage: 1000 },
       };
 
       mockDatabase.getUser.mockResolvedValue(user);
@@ -105,12 +112,12 @@ describe('Subscription Tier Enforcement', () => {
 
       // Test multiple features
       const featuresToTest = ['api-access', 'bulk-operations', 'advanced-filters', 'export-csv'];
-      
+
       for (const feature of featuresToTest) {
         const result = await tierEnforcement.canAccessFeature(feature, 'valid-jwt-token');
         expect(result).toEqual({
           allowed: true,
-          reason: 'Enterprise tier has access to ' + feature
+          reason: 'Enterprise tier has access to ' + feature,
         });
       }
     });
@@ -127,7 +134,7 @@ describe('Subscription Tier Enforcement', () => {
         email: 'upgrading@procura.com',
         tier: 'basic',
         subscription_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        quota: { max_opportunities: 100, current_usage: 50 }
+        quota: { max_opportunities: 100, current_usage: 50 },
       };
 
       mockDatabase.getUser.mockResolvedValue(user);
@@ -137,24 +144,20 @@ describe('Subscription Tier Enforcement', () => {
       mockStripe.upgradeSubscription.mockResolvedValue({
         new_tier: 'pro',
         effective_at: new Date().toISOString(),
-        proration_date: new Date().toISOString()
+        proration_date: new Date().toISOString(),
       });
 
-      const result = await tierEnforcement.upgradeTier(
-        'user-005', 
-        'pro', 
-        'valid-jwt-token'
-      );
-      
+      const result = await tierEnforcement.upgradeTier('user-005', 'pro', 'valid-jwt-token');
+
       expect(result).toEqual({
         success: true,
         new_tier: 'pro',
-        message: 'Subscription upgraded to pro tier'
+        message: 'Subscription upgraded to pro tier',
       });
-      
+
       // Verify user data updated
       expect(mockDatabase.updateUserTier).toHaveBeenCalledWith('user-005', 'pro');
-      
+
       // Verify session updated
       expect(mockSession.updateTier).toHaveBeenCalledWith('pro');
     });
@@ -165,35 +168,32 @@ describe('Subscription Tier Enforcement', () => {
         email: 'downgrading@procura.com',
         tier: 'pro',
         subscription_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        quota: { max_opportunities: 500, current_usage: 200 }
+        quota: { max_opportunities: 500, current_usage: 200 },
       };
 
       mockDatabase.getUser.mockResolvedValue(user);
+      mockDatabase.getQuotaUsage.mockResolvedValue(50);
       mockSession.getUser.mockResolvedValue(user);
 
       // Mock successful downgrade
       mockStripe.downgradeSubscription.mockResolvedValue({
         new_tier: 'basic',
         effective_at: new Date().toISOString(),
-        refund_amount: 2500 // $25.00
+        refund_amount: 2500, // $25.00
       });
 
-      const result = await tierEnforcement.downgradeTier(
-        'user-006', 
-        'basic', 
-        'valid-jwt-token'
-      );
-      
+      const result = await tierEnforcement.downgradeTier('user-006', 'basic', 'valid-jwt-token');
+
       expect(result).toEqual({
         success: true,
         new_tier: 'basic',
         message: 'Subscription downgraded to basic tier',
-        refund: 2500
+        refund: 2500,
       });
-      
+
       // Verify user data updated
       expect(mockDatabase.updateUserTier).toHaveBeenCalledWith('user-006', 'basic');
-      
+
       // Verify session updated
       expect(mockSession.updateTier).toHaveBeenCalledWith('basic');
     });
@@ -204,23 +204,19 @@ describe('Subscription Tier Enforcement', () => {
         email: 'over-quota@procura.com',
         tier: 'pro',
         subscription_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        quota: { max_opportunities: 500, current_usage: 450 }
+        quota: { max_opportunities: 500, current_usage: 450 },
       };
 
       mockDatabase.getUser.mockResolvedValue(user);
       mockSession.getUser.mockResolvedValue(user);
 
-      const result = await tierEnforcement.downgradeTier(
-        'user-007', 
-        'basic', 
-        'valid-jwt-token'
-      );
-      
+      const result = await tierEnforcement.downgradeTier('user-007', 'basic', 'valid-jwt-token');
+
       expect(result).toEqual({
         success: false,
-        message: 'Cannot downgrade: current usage exceeds basic tier quota'
+        message: 'Cannot downgrade: current usage exceeds basic tier quota',
       });
-      
+
       // Should not call Stripe or update database
       expect(mockStripe.downgradeSubscription).not.toHaveBeenCalled();
       expect(mockDatabase.updateUserTier).not.toHaveBeenCalled();
@@ -232,7 +228,7 @@ describe('Subscription Tier Enforcement', () => {
         email: 'upgrade-failed@procura.com',
         tier: 'basic',
         subscription_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        quota: { max_opportunities: 100, current_usage: 50 }
+        quota: { max_opportunities: 100, current_usage: 50 },
       };
 
       mockDatabase.getUser.mockResolvedValue(user);
@@ -241,17 +237,13 @@ describe('Subscription Tier Enforcement', () => {
       // Mock upgrade failure
       mockStripe.upgradeSubscription.mockRejectedValue(new Error('Payment failed'));
 
-      const result = await tierEnforcement.upgradeTier(
-        'user-008', 
-        'pro', 
-        'valid-jwt-token'
-      );
-      
+      const result = await tierEnforcement.upgradeTier('user-008', 'pro', 'valid-jwt-token');
+
       expect(result).toEqual({
         success: false,
-        message: 'Failed to upgrade subscription: Payment failed'
+        message: 'Failed to upgrade subscription: Payment failed',
       });
-      
+
       // Should not update user tier or session
       expect(mockDatabase.updateUserTier).not.toHaveBeenCalled();
       expect(mockSession.updateTier).not.toHaveBeenCalled();
@@ -269,7 +261,7 @@ describe('Subscription Tier Enforcement', () => {
         email: 'basic-quota@procura.com',
         tier: 'basic',
         subscription_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        quota: { max_opportunities: 100, current_usage: 95 }
+        quota: { max_opportunities: 100, current_usage: 95 },
       };
 
       mockDatabase.getUser.mockResolvedValue(user);
@@ -278,10 +270,10 @@ describe('Subscription Tier Enforcement', () => {
 
       // Try to add 10 more opportunities (would exceed quota)
       const result = await tierEnforcement.checkQuota('user-009', 10, 'valid-jwt-token');
-      
+
       expect(result).toEqual({
         allowed: false,
-        reason: 'Quota exceeded: 95/100 used, cannot add 10 more'
+        reason: 'Quota exceeded: 95/100 used, cannot add 10 more',
       });
     });
 
@@ -291,7 +283,7 @@ describe('Subscription Tier Enforcement', () => {
         email: 'pro-quota@procura.com',
         tier: 'pro',
         subscription_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        quota: { max_opportunities: 500, current_usage: 200 }
+        quota: { max_opportunities: 500, current_usage: 200 },
       };
 
       mockDatabase.getUser.mockResolvedValue(user);
@@ -300,10 +292,10 @@ describe('Subscription Tier Enforcement', () => {
 
       // Try to add 100 more opportunities (within quota)
       const result = await tierEnforcement.checkQuota('user-010', 100, 'valid-jwt-token');
-      
+
       expect(result).toEqual({
         allowed: true,
-        reason: 'Quota available: 200/500 used, can add 100 more'
+        reason: 'Quota available: 200/500 used, can add 100 more',
       });
     });
 
@@ -313,7 +305,7 @@ describe('Subscription Tier Enforcement', () => {
         email: 'quota-update@procura.com',
         tier: 'pro',
         subscription_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        quota: { max_opportunities: 500, current_usage: 450 }
+        quota: { max_opportunities: 500, current_usage: 450 },
       };
 
       mockDatabase.getUser.mockResolvedValue(user);
@@ -322,13 +314,13 @@ describe('Subscription Tier Enforcement', () => {
 
       // Add 20 opportunities (would reach quota limit)
       const result = await tierEnforcement.updateQuota('user-011', 20, 'valid-jwt-token');
-      
+
       expect(result).toEqual({
         success: true,
         new_usage: 470,
-        message: 'Quota updated: 470/500 used'
+        message: 'Quota updated: 470/500 used',
       });
-      
+
       expect(mockDatabase.updateQuotaUsage).toHaveBeenCalledWith('user-011', 470);
     });
 
@@ -338,7 +330,7 @@ describe('Subscription Tier Enforcement', () => {
         email: 'quota-overflow@procura.com',
         tier: 'basic',
         subscription_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        quota: { max_opportunities: 100, current_usage: 95 }
+        quota: { max_opportunities: 100, current_usage: 95 },
       };
 
       mockDatabase.getUser.mockResolvedValue(user);
@@ -347,12 +339,12 @@ describe('Subscription Tier Enforcement', () => {
 
       // Try to add 10 more (would exceed quota)
       const result = await tierEnforcement.updateQuota('user-012', 10, 'valid-jwt-token');
-      
+
       expect(result).toEqual({
         success: false,
-        message: 'Quota overflow prevented: 95/100 used, cannot add 10 more'
+        message: 'Quota overflow prevented: 95/100 used, cannot add 10 more',
       });
-      
+
       expect(mockDatabase.updateQuotaUsage).not.toHaveBeenCalled();
     });
   });
@@ -369,25 +361,28 @@ describe('Subscription Tier Enforcement', () => {
         tier: 'trial',
         subscription_expires_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14-day trial
         quota: { max_opportunities: 50, current_usage: 10 },
-        trial_started_at: new Date(Date.now() - 1000).toISOString()
+        trial_started_at: new Date(Date.now() - 1000).toISOString(),
       };
 
       mockDatabase.getUser.mockResolvedValue(user);
       mockSession.getUser.mockResolvedValue(user);
 
       const result = await tierEnforcement.checkTrialStatus('user-013', 'valid-jwt-token');
-      
+
       expect(result).toEqual({
         in_trial: true,
         days_remaining: 14,
-        features_available: ['dashboard', 'basic-filters', 'trial-features']
+        features_available: ['dashboard', 'basic-filters', 'trial-features'],
       });
-      
+
       // Verify trial features are accessible
-      const trialResult = await tierEnforcement.canAccessFeature('trial-features', 'valid-jwt-token');
+      const trialResult = await tierEnforcement.canAccessFeature(
+        'trial-features',
+        'valid-jwt-token'
+      );
       expect(trialResult).toEqual({
         allowed: true,
-        reason: 'Trial user has access to trial-features'
+        reason: 'Trial user has access to trial-features',
       });
     });
 
@@ -398,20 +393,20 @@ describe('Subscription Tier Enforcement', () => {
         tier: 'trial',
         subscription_expires_at: new Date(Date.now() - 1000).toISOString(), // Trial expired
         quota: { max_opportunities: 50, current_usage: 10 },
-        trial_started_at: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString() // 15 days ago
+        trial_started_at: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(), // 15 days ago
       };
 
       mockDatabase.getUser.mockResolvedValue(user);
       mockSession.getUser.mockResolvedValue(user);
 
       const result = await tierEnforcement.checkTrialStatus('user-014', 'valid-jwt-token');
-      
+
       expect(result).toEqual({
         in_trial: false,
         days_remaining: 0,
-        message: 'Trial period expired'
+        message: 'Trial period expired',
       });
-      
+
       // Should redirect to subscription page
       expect(mockSession.redirectToSubscription).toHaveBeenCalled();
     });
@@ -423,7 +418,7 @@ describe('Subscription Tier Enforcement', () => {
         tier: 'trial',
         subscription_expires_at: new Date(Date.now() + 1000).toISOString(), // Trial ends soon
         quota: { max_opportunities: 50, current_usage: 10 },
-        trial_started_at: new Date(Date.now() - 13 * 24 * 60 * 60 * 1000).toISOString()
+        trial_started_at: new Date(Date.now() - 13 * 24 * 60 * 60 * 1000).toISOString(),
       };
 
       mockDatabase.getUser.mockResolvedValue(user);
@@ -433,21 +428,21 @@ describe('Subscription Tier Enforcement', () => {
       mockStripe.createSubscription.mockResolvedValue({
         new_tier: 'basic',
         subscription_id: 'sub_123',
-        starts_at: new Date().toISOString()
+        starts_at: new Date().toISOString(),
       });
 
       const result = await tierEnforcement.convertTrialToPaid(
-        'user-015', 
-        'basic', 
+        'user-015',
+        'basic',
         'valid-jwt-token'
       );
-      
+
       expect(result).toEqual({
         success: true,
         new_tier: 'basic',
-        message: 'Trial converted to basic tier subscription'
+        message: 'Trial converted to basic tier subscription',
       });
-      
+
       expect(mockDatabase.updateUserTier).toHaveBeenCalledWith('user-015', 'basic');
       expect(mockDatabase.updateSubscription).toHaveBeenCalledWith('user-015', 'sub_123');
     });
@@ -464,28 +459,31 @@ describe('Subscription Tier Enforcement', () => {
         email: 'expired@procura.com',
         tier: 'pro',
         subscription_expires_at: new Date(Date.now() - 1000).toISOString(), // Expired
-        quota: { max_opportunities: 500, current_usage: 200 }
+        quota: { max_opportunities: 500, current_usage: 200 },
       };
 
       mockDatabase.getUser.mockResolvedValue(user);
       mockSession.getUser.mockResolvedValue(user);
 
       const result = await tierEnforcement.checkSubscriptionStatus('user-016', 'valid-jwt-token');
-      
+
       expect(result).toEqual({
         active: false,
         expired: true,
-        message: 'Subscription expired'
+        message: 'Subscription expired',
       });
-      
+
       // Should downgrade to free tier
       expect(mockDatabase.updateUserTier).toHaveBeenCalledWith('user-016', 'basic');
-      
+
       // Should clear premium features
-      const featureResult = await tierEnforcement.canAccessFeature('advanced-filters', 'valid-jwt-token');
+      const featureResult = await tierEnforcement.canAccessFeature(
+        'advanced-filters',
+        'valid-jwt-token'
+      );
       expect(featureResult).toEqual({
         allowed: false,
-        reason: 'Subscription expired'
+        reason: 'Subscription expired',
       });
     });
 
@@ -495,20 +493,20 @@ describe('Subscription Tier Enforcement', () => {
         email: 'renewal@procura.com',
         tier: 'pro',
         subscription_expires_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(), // Expires in 3 days
-        quota: { max_opportunities: 500, current_usage: 200 }
+        quota: { max_opportunities: 500, current_usage: 200 },
       };
 
       mockDatabase.getUser.mockResolvedValue(user);
       mockSession.getUser.mockResolvedValue(user);
 
       const result = await tierEnforcement.checkSubscriptionStatus('user-017', 'valid-jwt-token');
-      
+
       expect(result).toEqual({
         active: true,
         expires_in: 3,
-        message: 'Subscription active, renewal reminder sent'
+        message: 'Subscription active, renewal reminder sent',
       });
-      
+
       // Should send renewal email
       expect(mockDatabase.logRenewalReminder).toHaveBeenCalledWith('user-017', 3);
     });

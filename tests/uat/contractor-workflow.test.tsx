@@ -35,7 +35,9 @@ test.describe('UAT - Contractor Workflow', () => {
     // Add comment
     await page.fill('[data-testid="comment-input"]', 'Looks like a strong fit.');
     await page.click('[data-testid="add-comment"]');
-    await expect(page.locator('[data-testid="comment-item"]')).toContainText('Looks like a strong fit.');
+    await expect(page.locator('[data-testid="comment-item"]')).toContainText(
+      'Looks like a strong fit.'
+    );
 
     // Collaborator mention
     await page.fill('[data-testid="comment-input"]', '@teammate please review');
@@ -64,7 +66,8 @@ test.describe('UAT - Contractor Workflow', () => {
     await page.fill('[data-testid="edit-title"]', 'Updated Opportunity Title');
     await page.click('[data-testid="edit-save"]');
 
-    await expect(page.locator('[data-testid="opportunity-title"]')).toContainText('Updated Opportunity Title');
+    await expect(page.locator('[data-testid="opportunity-title"]')).toContainText(
+      'Updated Opportunity Title'
+    );
   });
 });
-

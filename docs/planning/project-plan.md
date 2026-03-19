@@ -28,14 +28,14 @@
 
 Government contractors face significant challenges:
 
-| Challenge | Impact |
-|-----------|--------|
-| **Manual Discovery** | Hours spent searching SAM.gov, Grants.gov, state portals daily |
+| Challenge                      | Impact                                                                 |
+| ------------------------------ | ---------------------------------------------------------------------- |
+| **Manual Discovery**           | Hours spent searching SAM.gov, Grants.gov, state portals daily         |
 | **Inconsistent Qualification** | No standardized scoring leads to missed opportunities or wasted effort |
-| **Fragmented Documents** | Proposals scattered across folders, emails, shared drives |
-| **Credential Chaos** | Portal passwords in sticky notes, shared accounts, security risks |
-| **Submission Inefficiency** | Manual form filling, repeated data entry, human errors |
-| **Limited Visibility** | No audit trail, unclear submission status, compliance gaps |
+| **Fragmented Documents**       | Proposals scattered across folders, emails, shared drives              |
+| **Credential Chaos**           | Portal passwords in sticky notes, shared accounts, security risks      |
+| **Submission Inefficiency**    | Manual form filling, repeated data entry, human errors                 |
+| **Limited Visibility**         | No audit trail, unclear submission status, compliance gaps             |
 
 ---
 
@@ -70,12 +70,14 @@ Procura automates the entire contract lifecycle:
 ## Core Features
 
 ### 1. Opportunity Discovery
+
 - **Automated Scraping**: Scheduled fetches from multiple government sources
 - **Real-time Updates**: 15-minute refresh intervals
 - **Deduplication**: Intelligent matching to avoid duplicates
 - **Normalized Data**: Consistent format across all sources
 
 ### 2. AI Qualification Engine
+
 - **Fit Score (0-100)**: How well opportunity matches capabilities
 - **Effort Score (0-100)**: Complexity and resource requirements
 - **Urgency Score (0-100)**: Time-sensitivity based on deadline
@@ -83,24 +85,28 @@ Procura automates the entire contract lifecycle:
 - **LLM Provider**: Claude 3.5 Sonnet (primary), GPT-4 (fallback)
 
 ### 3. Submission Workflow
+
 - **Workspace**: Centralized preparation environment
 - **Checklist**: Track required tasks and documents
 - **Approval Chain**: Legal → Finance → Executive sign-off
 - **Autonomy Mode**: Auto-approve under threshold (configurable $)
 
 ### 4. Browser Automation (OpenManus)
+
 - **Form Filling**: Automated data entry on government portals
 - **File Upload**: Attach proposal documents
 - **Screenshot Capture**: Evidence of submission
 - **Receipt Extraction**: Confirmation numbers and timestamps
 
 ### 5. Credential Vault
+
 - **Fernet Encryption**: AES-128-CBC for credentials at rest
 - **Rotation Support**: Scheduled credential refresh
 - **Access Control**: Admin-only visibility
 - **Audit Trail**: All access logged
 
 ### 6. Audit & Compliance
+
 - **Immutable Logs**: Cryptographically signed (HMAC-SHA256)
 - **Evidence Storage**: Screenshots, PDFs, receipts
 - **Export Capability**: JSON export for compliance audits
@@ -143,38 +149,42 @@ Procura automates the entire contract lifecycle:
 ## Technology Stack
 
 ### Backend
-| Component | Technology | Version | Purpose |
-|-----------|------------|---------|---------|
-| Framework | FastAPI | 0.110.0 | Async REST API |
-| Runtime | Python | 3.11+ | Backend logic |
-| Task Queue | Celery | 5.3.6 | Scheduled jobs |
-| Broker | Redis | 5.0.1 | Message queue |
-| Database | Supabase PostgreSQL | Latest | Data storage |
-| Auth | Supabase Auth | Latest | JWT authentication |
+
+| Component  | Technology          | Version | Purpose            |
+| ---------- | ------------------- | ------- | ------------------ |
+| Framework  | FastAPI             | 0.110.0 | Async REST API     |
+| Runtime    | Python              | 3.11+   | Backend logic      |
+| Task Queue | Celery              | 5.3.6   | Scheduled jobs     |
+| Broker     | Redis               | 5.0.1   | Message queue      |
+| Database   | Supabase PostgreSQL | Latest  | Data storage       |
+| Auth       | Supabase Auth       | Latest  | JWT authentication |
 
 ### Frontend
-| Component | Technology | Version | Purpose |
-|-----------|------------|---------|---------|
-| Framework | React | 19.x | UI components |
-| Build | Vite | 6.x | Development server |
-| Language | TypeScript | 5.x | Type safety |
-| Routing | React Router | 7.x | Navigation |
-| Auth | @supabase/supabase-js | 2.43+ | Auth client |
+
+| Component | Technology            | Version | Purpose            |
+| --------- | --------------------- | ------- | ------------------ |
+| Framework | React                 | 19.x    | UI components      |
+| Build     | Vite                  | 6.x     | Development server |
+| Language  | TypeScript            | 5.x     | Type safety        |
+| Routing   | React Router          | 7.x     | Navigation         |
+| Auth      | @supabase/supabase-js | 2.43+   | Auth client        |
 
 ### AI/ML
-| Component | Technology | Purpose |
-|-----------|------------|---------|
-| Primary LLM | Anthropic Claude 3.5 Sonnet | Contract analysis |
-| Fallback LLM | OpenAI GPT-4 | Backup provider |
-| Caching | PostgreSQL | Response caching |
+
+| Component    | Technology                  | Purpose           |
+| ------------ | --------------------------- | ----------------- |
+| Primary LLM  | Anthropic Claude 3.5 Sonnet | Contract analysis |
+| Fallback LLM | OpenAI GPT-4                | Backup provider   |
+| Caching      | PostgreSQL                  | Response caching  |
 
 ### Security
-| Component | Technology | Purpose |
-|-----------|------------|---------|
-| Encryption | Fernet (cryptography) | Credential vault |
-| Signing | HMAC-SHA256 | Audit integrity |
-| Auth | Supabase JWT | API authentication |
-| RLS | PostgreSQL | Row-level security |
+
+| Component  | Technology            | Purpose            |
+| ---------- | --------------------- | ------------------ |
+| Encryption | Fernet (cryptography) | Credential vault   |
+| Signing    | HMAC-SHA256           | Audit integrity    |
+| Auth       | Supabase JWT          | API authentication |
+| RLS        | PostgreSQL            | Row-level security |
 
 ---
 
@@ -182,20 +192,20 @@ Procura automates the entire contract lifecycle:
 
 ### Tables Overview
 
-| Table | Purpose | Key Fields |
-|-------|---------|------------|
-| `profiles` | User accounts | id, email, role, department |
-| `opportunities` | Discovered contracts | external_ref, agency, due_date, fit_score |
-| `submissions` | Proposal workspaces | opportunity_id, status, approval_status |
-| `submission_files` | Uploaded documents | file_name, storage_path, scan_status |
-| `submission_tasks` | Checklist items | title, completed, locked |
-| `connectors` | Portal configurations | name, auth_type, encrypted_credentials |
-| `discovery_runs` | Scraper execution logs | connector_id, status, records_fetched |
-| `submission_runs` | Automation execution | submission_id, receipt_id, screenshots |
-| `audit_logs` | Immutable trail | submission_ref, confirmation_hash |
-| `approval_workflows` | Approval chain | step_name, approver_id, status |
-| `llm_cache` | AI response cache | prompt_hash, response, tokens_used |
-| `system_settings` | Configuration | key, value (autonomy_mode, llm_provider) |
+| Table                | Purpose                | Key Fields                                |
+| -------------------- | ---------------------- | ----------------------------------------- |
+| `profiles`           | User accounts          | id, email, role, department               |
+| `opportunities`      | Discovered contracts   | external_ref, agency, due_date, fit_score |
+| `submissions`        | Proposal workspaces    | opportunity_id, status, approval_status   |
+| `submission_files`   | Uploaded documents     | file_name, storage_path, scan_status      |
+| `submission_tasks`   | Checklist items        | title, completed, locked                  |
+| `connectors`         | Portal configurations  | name, auth_type, encrypted_credentials    |
+| `discovery_runs`     | Scraper execution logs | connector_id, status, records_fetched     |
+| `submission_runs`    | Automation execution   | submission_id, receipt_id, screenshots    |
+| `audit_logs`         | Immutable trail        | submission_ref, confirmation_hash         |
+| `approval_workflows` | Approval chain         | step_name, approver_id, status            |
+| `llm_cache`          | AI response cache      | prompt_hash, response, tokens_used        |
+| `system_settings`    | Configuration          | key, value (autonomy_mode, llm_provider)  |
 
 ### Enums
 
@@ -213,58 +223,63 @@ user_role: 'admin' | 'contract_officer' | 'viewer'
 ## API Endpoints
 
 ### Opportunities (`/api/opportunities`)
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| GET | `/` | List with filters | User |
-| GET | `/{id}` | Get single | User |
-| POST | `/` | Create manual | Officer |
-| PATCH | `/{id}` | Update | Officer |
-| PATCH | `/{id}/disqualify` | Disqualify | Officer |
-| POST | `/sync` | Trigger discovery | Officer |
-| POST | `/{id}/qualify` | AI qualification | Officer |
+
+| Method | Endpoint           | Description       | Auth    |
+| ------ | ------------------ | ----------------- | ------- |
+| GET    | `/`                | List with filters | User    |
+| GET    | `/{id}`            | Get single        | User    |
+| POST   | `/`                | Create manual     | Officer |
+| PATCH  | `/{id}`            | Update            | Officer |
+| PATCH  | `/{id}/disqualify` | Disqualify        | Officer |
+| POST   | `/sync`            | Trigger discovery | Officer |
+| POST   | `/{id}/qualify`    | AI qualification  | Officer |
 
 ### Submissions (`/api/submissions`)
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| GET | `/` | List user's | User |
-| GET | `/{id}` | Get with files/tasks | Owner |
-| POST | `/` | Create workspace | User |
-| PATCH | `/{id}` | Update | Owner |
-| POST | `/{id}/approve` | Approve step | Officer |
-| POST | `/{id}/reject` | Reject | Officer |
-| POST | `/{id}/finalize` | Execute automation | Officer |
-| PATCH | `/{id}/tasks/{task_id}` | Update task | Owner |
+
+| Method | Endpoint                | Description          | Auth    |
+| ------ | ----------------------- | -------------------- | ------- |
+| GET    | `/`                     | List user's          | User    |
+| GET    | `/{id}`                 | Get with files/tasks | Owner   |
+| POST   | `/`                     | Create workspace     | User    |
+| PATCH  | `/{id}`                 | Update               | Owner   |
+| POST   | `/{id}/approve`         | Approve step         | Officer |
+| POST   | `/{id}/reject`          | Reject               | Officer |
+| POST   | `/{id}/finalize`        | Execute automation   | Officer |
+| PATCH  | `/{id}/tasks/{task_id}` | Update task          | Owner   |
 
 ### Connectors (`/api/connectors`)
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| GET | `/` | List all | Admin |
-| GET | `/{id}` | Get single | Admin |
-| POST | `/` | Create | Admin |
-| PATCH | `/{id}` | Update | Admin |
-| POST | `/{id}/rotate` | Rotate credentials | Admin |
-| DELETE | `/{id}` | Revoke | Admin |
-| POST | `/{id}/test` | Test connection | Admin |
-| GET | `/{id}/runs` | Get run history | Admin |
+
+| Method | Endpoint       | Description        | Auth  |
+| ------ | -------------- | ------------------ | ----- |
+| GET    | `/`            | List all           | Admin |
+| GET    | `/{id}`        | Get single         | Admin |
+| POST   | `/`            | Create             | Admin |
+| PATCH  | `/{id}`        | Update             | Admin |
+| POST   | `/{id}/rotate` | Rotate credentials | Admin |
+| DELETE | `/{id}`        | Revoke             | Admin |
+| POST   | `/{id}/test`   | Test connection    | Admin |
+| GET    | `/{id}/runs`   | Get run history    | Admin |
 
 ### Audit (`/api/audit-logs`)
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| GET | `/` | List logs | User |
-| GET | `/{id}/verify` | Verify integrity | Admin |
-| GET | `/export/json` | Export all | Admin |
+
+| Method | Endpoint       | Description      | Auth  |
+| ------ | -------------- | ---------------- | ----- |
+| GET    | `/`            | List logs        | User  |
+| GET    | `/{id}/verify` | Verify integrity | Admin |
+| GET    | `/export/json` | Export all       | Admin |
 
 ### Admin (`/api/admin`)
-| Method | Endpoint | Description | Auth |
-|--------|----------|-------------|------|
-| GET | `/users` | List users | Admin |
-| PATCH | `/users/{id}/role` | Update role | Admin |
-| DELETE | `/users/{id}` | Delete user | Admin |
-| GET | `/autonomy` | Get settings | Admin |
-| PATCH | `/autonomy` | Update settings | Admin |
-| GET | `/health` | System health | Admin |
-| GET | `/runs` | All discovery runs | Admin |
-| POST | `/runs/{id}/retry` | Retry failed run | Admin |
+
+| Method | Endpoint           | Description        | Auth  |
+| ------ | ------------------ | ------------------ | ----- |
+| GET    | `/users`           | List users         | Admin |
+| PATCH  | `/users/{id}/role` | Update role        | Admin |
+| DELETE | `/users/{id}`      | Delete user        | Admin |
+| GET    | `/autonomy`        | Get settings       | Admin |
+| PATCH  | `/autonomy`        | Update settings    | Admin |
+| GET    | `/health`          | System health      | Admin |
+| GET    | `/runs`            | All discovery runs | Admin |
+| POST   | `/runs/{id}/retry` | Retry failed run   | Admin |
 
 ---
 
@@ -272,38 +287,41 @@ user_role: 'admin' | 'contract_officer' | 'viewer'
 
 ### API Sources
 
-| Source | Type | Status | API Key Required |
-|--------|------|--------|------------------|
-| GovCon API | Aggregated Federal | ✅ Implemented | Yes - `GOVCON_API_KEY` |
-| SAM.gov | Federal Direct | ✅ Implemented | Yes - `SAM_GOV_API_KEY` |
-| USAspending | Contract Awards | ✅ Implemented | No (public) |
-| Grants.gov | Grants | 🔜 Planned | Yes |
-| NewsAPI | Market Intelligence | 🔜 Planned | Yes - `NEWS_API_KEY` |
+| Source      | Type                | Status         | API Key Required        |
+| ----------- | ------------------- | -------------- | ----------------------- |
+| GovCon API  | Aggregated Federal  | ✅ Implemented | Yes - `GOVCON_API_KEY`  |
+| SAM.gov     | Federal Direct      | ✅ Implemented | Yes - `SAM_GOV_API_KEY` |
+| USAspending | Contract Awards     | ✅ Implemented | No (public)             |
+| Grants.gov  | Grants              | 🔜 Planned     | Yes                     |
+| NewsAPI     | Market Intelligence | 🔜 Planned     | Yes - `NEWS_API_KEY`    |
 
 ### Browser Automation
 
-| Component | Technology | Status |
-|-----------|------------|--------|
-| OpenManus | AI Agent Platform | 🔜 Integration Pending |
-| Fallback | Playwright/Puppeteer | Backup option |
+| Component | Technology           | Status                 |
+| --------- | -------------------- | ---------------------- |
+| OpenManus | AI Agent Platform    | 🔜 Integration Pending |
+| Fallback  | Playwright/Puppeteer | Backup option          |
 
 ---
 
 ## Security Requirements
 
 ### Authentication & Authorization
+
 - [x] JWT-based authentication via Supabase
 - [x] Role-based access control (admin, officer, viewer)
 - [x] Row-level security in PostgreSQL
 - [x] Token refresh handling
 
 ### Data Protection
+
 - [x] Fernet encryption for credentials (AES-128)
 - [x] HMAC-SHA256 for audit log integrity
 - [x] HTTPS for all API communication
 - [x] Sensitive data excluded from logs
 
 ### Compliance Considerations
+
 - [ ] SOC 2 Type II readiness
 - [ ] NIST 800-171 alignment
 - [ ] FedRAMP preparation (if needed)
@@ -314,6 +332,7 @@ user_role: 'admin' | 'contract_officer' | 'viewer'
 ## Phased Implementation Checklist
 
 ### Phase 1: Core Infrastructure ✅ COMPLETE
+
 - [x] Database schema design
 - [x] Supabase project setup
 - [x] SQL migrations created
@@ -325,6 +344,7 @@ user_role: 'admin' | 'contract_officer' | 'viewer'
 - [x] Basic API routers
 
 ### Phase 2: Discovery & Vault ✅ COMPLETE
+
 - [x] Connector framework (base class)
 - [x] GovCon API connector
 - [x] SAM.gov API connector
@@ -341,6 +361,7 @@ user_role: 'admin' | 'contract_officer' | 'viewer'
 - [ ] Verify scheduled tasks
 
 ### Phase 3: AI Qualification ✅ IN PROGRESS
+
 - [x] LLM client (multi-provider)
 - [x] Qualification engine
 - [x] Scoring prompt engineering
@@ -351,6 +372,7 @@ user_role: 'admin' | 'contract_officer' | 'viewer'
 - [ ] **Tune scoring accuracy**
 
 ### Phase 4: Submission Automation
+
 - [x] OpenManus client
 - [x] Submission engine
 - [x] Audit log signing
@@ -360,6 +382,7 @@ user_role: 'admin' | 'contract_officer' | 'viewer'
 - [ ] **Capture receipt workflow**
 
 ### Phase 5: Frontend Integration ✅ COMPLETE
+
 - [x] API client (TypeScript)
 - [x] API client created ✅
 - [x] Dashboard fetches from API ✅
@@ -372,7 +395,8 @@ user_role: 'admin' | 'contract_officer' | 'viewer'
 - [x] Testing Guide created ✅
 
 ### Phase 6: Testing & Hardening 🟡 READY TO START
-- [x] Unit tests (pytest) - *Started*
+
+- [x] Unit tests (pytest) - _Started_
 - [x] Integration guides created (TESTING_GUIDE.md)
 - [ ] Load testing
 - [ ] Security audit
@@ -381,6 +405,7 @@ user_role: 'admin' | 'contract_officer' | 'viewer'
 - [ ] Logging improvements
 
 ### Phase 7: Deployment
+
 - [ ] Backend deployment (Railway/Render)
 - [ ] Redis deployment (Upstash)
 - [ ] Frontend deployment (Vercel)
@@ -452,18 +477,21 @@ VITE_API_URL=http://localhost:8001/api  # Backend runs on 8001
 ## Deployment Strategy
 
 ### Development
+
 - Local FastAPI server (uvicorn)
 - Local Redis (Docker)
 - Supabase cloud project
 - Vite dev server
 
 ### Staging
+
 - Railway/Render for backend
 - Upstash for Redis
 - Supabase staging project
 - Vercel preview deployments
 
 ### Production
+
 - Railway/Render with autoscaling
 - Upstash Redis with persistence
 - Supabase production project
@@ -476,27 +504,32 @@ VITE_API_URL=http://localhost:8001/api  # Backend runs on 8001
 ## Success Metrics
 
 ### Phase 1-2 (Foundation)
+
 - [x] Backend starts without errors ✅
 - [x] All API endpoints return 200/401/403 appropriately ✅
 - [ ] Database queries execute under 100ms
 - [ ] Celery workers process tasks
 
 ### Phase 3 (Discovery)
+
 - [ ] 50+ opportunities fetched per sync
 - [ ] Deduplication rate > 95%
 - [ ] Sync completes in < 60 seconds
 
 ### Phase 4 (Qualification)
+
 - [ ] AI scoring runs in < 5 seconds
 - [ ] 85%+ user agreement with scores
 - [ ] Cache hit rate > 70%
 
 ### Phase 5 (Automation)
+
 - [ ] 90%+ form fill success rate
 - [ ] Receipt capture 100% reliable
 - [ ] Average submission time < 5 minutes
 
 ### Production
+
 - [ ] 99.5% API uptime
 - [ ] < 200ms average response time
 - [ ] < 0.1% error rate
@@ -517,6 +550,6 @@ VITE_API_URL=http://localhost:8001/api  # Backend runs on 8001
 
 ---
 
-*Document Version: 1.0*  
-*Last Updated: 2026-01-28*  
-*Status: Phase 2 - Discovery & Vault*
+_Document Version: 1.0_  
+_Last Updated: 2026-01-28_  
+_Status: Phase 2 - Discovery & Vault_

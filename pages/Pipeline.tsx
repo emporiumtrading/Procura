@@ -1,8 +1,17 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Loader2, RefreshCw, Zap, Settings2, ChevronRight,
-  Search, TrendingUp, FileText, CheckCircle, Send, Eye
+  Loader2,
+  RefreshCw,
+  Zap,
+  Settings2,
+  ChevronRight,
+  Search,
+  TrendingUp,
+  FileText,
+  CheckCircle,
+  Send,
+  Eye,
 } from 'lucide-react';
 import { api } from '../lib/api';
 
@@ -32,12 +41,54 @@ type PipelineConfig = {
 // ── Stage definitions ─────────────────────────────────────────────────────────
 
 const STAGES = [
-  { key: 'discovered', label: 'Discovered', color: 'border-gray-300', bg: 'bg-gray-50', dot: 'bg-gray-400', icon: <Search size={14} /> },
-  { key: 'qualified', label: 'Qualified', color: 'border-blue-300', bg: 'bg-blue-50', dot: 'bg-blue-500', icon: <TrendingUp size={14} /> },
-  { key: 'drafting', label: 'Drafting', color: 'border-purple-300', bg: 'bg-purple-50', dot: 'bg-purple-500', icon: <FileText size={14} /> },
-  { key: 'review', label: 'Review', color: 'border-amber-300', bg: 'bg-amber-50', dot: 'bg-amber-500', icon: <Eye size={14} /> },
-  { key: 'submitted', label: 'Submitted', color: 'border-green-300', bg: 'bg-green-50', dot: 'bg-green-500', icon: <Send size={14} /> },
-  { key: 'tracking', label: 'Tracking', color: 'border-emerald-300', bg: 'bg-emerald-50', dot: 'bg-emerald-600', icon: <CheckCircle size={14} /> },
+  {
+    key: 'discovered',
+    label: 'Discovered',
+    color: 'border-gray-300',
+    bg: 'bg-gray-50',
+    dot: 'bg-gray-400',
+    icon: <Search size={14} />,
+  },
+  {
+    key: 'qualified',
+    label: 'Qualified',
+    color: 'border-blue-300',
+    bg: 'bg-blue-50',
+    dot: 'bg-blue-500',
+    icon: <TrendingUp size={14} />,
+  },
+  {
+    key: 'drafting',
+    label: 'Drafting',
+    color: 'border-purple-300',
+    bg: 'bg-purple-50',
+    dot: 'bg-purple-500',
+    icon: <FileText size={14} />,
+  },
+  {
+    key: 'review',
+    label: 'Review',
+    color: 'border-amber-300',
+    bg: 'bg-amber-50',
+    dot: 'bg-amber-500',
+    icon: <Eye size={14} />,
+  },
+  {
+    key: 'submitted',
+    label: 'Submitted',
+    color: 'border-green-300',
+    bg: 'bg-green-50',
+    dot: 'bg-green-500',
+    icon: <Send size={14} />,
+  },
+  {
+    key: 'tracking',
+    label: 'Tracking',
+    color: 'border-emerald-300',
+    bg: 'bg-emerald-50',
+    dot: 'bg-emerald-600',
+    icon: <CheckCircle size={14} />,
+  },
 ] as const;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -64,8 +115,15 @@ const daysUntil = (d?: string | null) => {
 
 const FitBadge: React.FC<{ score?: number | null }> = ({ score }) => {
   if (score == null) return <span className="text-xs text-gray-400">—</span>;
-  const color = score >= 80 ? 'text-green-700 bg-green-100' : score >= 60 ? 'text-amber-700 bg-amber-100' : 'text-gray-600 bg-gray-100';
-  return <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${color}`}>{score}</span>;
+  const color =
+    score >= 80
+      ? 'text-green-700 bg-green-100'
+      : score >= 60
+        ? 'text-amber-700 bg-amber-100'
+        : 'text-gray-600 bg-gray-100';
+  return (
+    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${color}`}>{score}</span>
+  );
 };
 
 // ── Mode badge ────────────────────────────────────────────────────────────────
@@ -113,7 +171,9 @@ const Pipeline: React.FC = () => {
     setIsLoading(false);
   }, []);
 
-  useEffect(() => { loadPipeline(); }, [loadPipeline]);
+  useEffect(() => {
+    loadPipeline();
+  }, [loadPipeline]);
 
   const handleSaveConfig = async () => {
     if (!draftConfig) return;
@@ -142,13 +202,13 @@ const Pipeline: React.FC = () => {
           <div>
             <h1 className="text-xl font-bold text-gray-900">Pipeline</h1>
             <p className="text-sm text-gray-500 mt-0.5">
-              {totalOpportunities} opportunities tracked · {' '}
+              {totalOpportunities} opportunities tracked ·{' '}
               {config && <ModeBadge mode={config.mode} />}
             </p>
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowConfigPanel(v => !v)}
+              onClick={() => setShowConfigPanel((v) => !v)}
               className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all"
             >
               <Settings2 size={16} />
@@ -174,7 +234,12 @@ const Pipeline: React.FC = () => {
                 <label className="text-xs text-gray-500 font-medium block mb-1">Mode</label>
                 <select
                   value={draftConfig.mode}
-                  onChange={e => setDraftConfig(d => ({ ...d!, mode: e.target.value as PipelineConfig['mode'] }))}
+                  onChange={(e) =>
+                    setDraftConfig((d) => ({
+                      ...d!,
+                      mode: e.target.value as PipelineConfig['mode'],
+                    }))
+                  }
                   className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
                 >
                   <option value="manual">Manual — humans decide all pursuits</option>
@@ -188,12 +253,17 @@ const Pipeline: React.FC = () => {
                 </label>
                 <input
                   type="number"
-                  min={0} max={100}
+                  min={0}
+                  max={100}
                   value={draftConfig.fit_threshold}
-                  onChange={e => setDraftConfig(d => ({ ...d!, fit_threshold: Number(e.target.value) }))}
+                  onChange={(e) =>
+                    setDraftConfig((d) => ({ ...d!, fit_threshold: Number(e.target.value) }))
+                  }
                   className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
                 />
-                <p className="text-[10px] text-gray-400 mt-1">Auto-create draft submission above this score</p>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Auto-create draft submission above this score
+                </p>
               </div>
               <div>
                 <label className="text-xs text-gray-500 font-medium block mb-1">
@@ -201,12 +271,17 @@ const Pipeline: React.FC = () => {
                 </label>
                 <input
                   type="number"
-                  min={0} max={100}
+                  min={0}
+                  max={100}
                   value={draftConfig.auto_threshold}
-                  onChange={e => setDraftConfig(d => ({ ...d!, auto_threshold: Number(e.target.value) }))}
+                  onChange={(e) =>
+                    setDraftConfig((d) => ({ ...d!, auto_threshold: Number(e.target.value) }))
+                  }
                   className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
                 />
-                <p className="text-[10px] text-gray-400 mt-1">Also auto-generate full proposal above this score</p>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Also auto-generate full proposal above this score
+                </p>
               </div>
               <div>
                 <label className="text-xs text-gray-500 font-medium block mb-1">
@@ -216,15 +291,22 @@ const Pipeline: React.FC = () => {
                   type="number"
                   min={0}
                   value={draftConfig.max_auto_value}
-                  onChange={e => setDraftConfig(d => ({ ...d!, max_auto_value: Number(e.target.value) }))}
+                  onChange={(e) =>
+                    setDraftConfig((d) => ({ ...d!, max_auto_value: Number(e.target.value) }))
+                  }
                   className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
                 />
-                <p className="text-[10px] text-gray-400 mt-1">Only auto-pursue contracts ≤ this value (USD)</p>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Only auto-pursue contracts ≤ this value (USD)
+                </p>
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-3">
               <button
-                onClick={() => { setShowConfigPanel(false); setDraftConfig(config); }}
+                onClick={() => {
+                  setShowConfigPanel(false);
+                  setDraftConfig(config);
+                }}
                 className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 transition-colors"
               >
                 Cancel
@@ -244,7 +326,9 @@ const Pipeline: React.FC = () => {
 
       {/* Error */}
       {error && (
-        <div className="px-6 py-3 bg-red-50 border-b border-red-200 text-sm text-red-700">{error}</div>
+        <div className="px-6 py-3 bg-red-50 border-b border-red-200 text-sm text-red-700">
+          {error}
+        </div>
       )}
 
       {/* Kanban board */}
@@ -260,7 +344,9 @@ const Pipeline: React.FC = () => {
               return (
                 <div key={stage.key} className="flex flex-col w-64 shrink-0">
                   {/* Column header */}
-                  <div className={`flex items-center justify-between px-3 py-2.5 rounded-lg border ${stage.color} ${stage.bg} mb-3`}>
+                  <div
+                    className={`flex items-center justify-between px-3 py-2.5 rounded-lg border ${stage.color} ${stage.bg} mb-3`}
+                  >
                     <div className="flex items-center gap-2">
                       <span className={`w-2 h-2 rounded-full ${stage.dot}`} />
                       <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
@@ -298,18 +384,29 @@ const Pipeline: React.FC = () => {
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-1.5">
                                 {card.due_date && (
-                                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
-                                    isUrgent
-                                      ? 'bg-red-50 text-red-700 border-red-200'
-                                      : 'bg-gray-50 text-gray-500 border-gray-200'
-                                  }`}>
-                                    {due !== null ? (due >= 0 ? `${due}d` : 'past') : formatDate(card.due_date)}
+                                  <span
+                                    className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
+                                      isUrgent
+                                        ? 'bg-red-50 text-red-700 border-red-200'
+                                        : 'bg-gray-50 text-gray-500 border-gray-200'
+                                    }`}
+                                  >
+                                    {due !== null
+                                      ? due >= 0
+                                        ? `${due}d`
+                                        : 'past'
+                                      : formatDate(card.due_date)}
                                   </span>
                                 )}
-                                <span className="text-[10px] text-gray-400">{formatCurrency(card.estimated_value)}</span>
+                                <span className="text-[10px] text-gray-400">
+                                  {formatCurrency(card.estimated_value)}
+                                </span>
                               </div>
                               {card.submission_id && (
-                                <ChevronRight size={12} className="text-gray-300 group-hover:text-gray-600 transition-colors" />
+                                <ChevronRight
+                                  size={12}
+                                  className="text-gray-300 group-hover:text-gray-600 transition-colors"
+                                />
                               )}
                             </div>
                           </button>
@@ -318,15 +415,16 @@ const Pipeline: React.FC = () => {
                     )}
 
                     {/* Quick action at bottom of Discovered/Qualified columns */}
-                    {(stage.key === 'discovered' || stage.key === 'qualified') && cards.length > 0 && (
-                      <button
-                        onClick={() => navigate('/dashboard')}
-                        className="flex items-center justify-center gap-1.5 w-full py-2 text-xs text-gray-500 hover:text-gray-900 border border-dashed border-gray-200 rounded-lg hover:border-gray-400 transition-all"
-                      >
-                        <Zap size={12} />
-                        Pursue from Dashboard
-                      </button>
-                    )}
+                    {(stage.key === 'discovered' || stage.key === 'qualified') &&
+                      cards.length > 0 && (
+                        <button
+                          onClick={() => navigate('/dashboard')}
+                          className="flex items-center justify-center gap-1.5 w-full py-2 text-xs text-gray-500 hover:text-gray-900 border border-dashed border-gray-200 rounded-lg hover:border-gray-400 transition-all"
+                        >
+                          <Zap size={12} />
+                          Pursue from Dashboard
+                        </button>
+                      )}
                   </div>
                 </div>
               );
@@ -338,14 +436,25 @@ const Pipeline: React.FC = () => {
       {/* Footer stats */}
       {!isLoading && config && (
         <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 flex items-center gap-6 text-xs text-gray-500">
-          <span>Mode: <strong className="text-gray-700">{config.mode}</strong></span>
+          <span>
+            Mode: <strong className="text-gray-700">{config.mode}</strong>
+          </span>
           {config.mode !== 'manual' && (
-            <span>Auto-draft threshold: <strong className="text-gray-700">{config.fit_threshold}</strong></span>
+            <span>
+              Auto-draft threshold:{' '}
+              <strong className="text-gray-700">{config.fit_threshold}</strong>
+            </span>
           )}
           {config.mode === 'autonomous' && (
             <>
-              <span>Auto-proposal threshold: <strong className="text-gray-700">{config.auto_threshold}</strong></span>
-              <span>Max auto value: <strong className="text-gray-700">{formatCurrency(config.max_auto_value)}</strong></span>
+              <span>
+                Auto-proposal threshold:{' '}
+                <strong className="text-gray-700">{config.auto_threshold}</strong>
+              </span>
+              <span>
+                Max auto value:{' '}
+                <strong className="text-gray-700">{formatCurrency(config.max_auto_value)}</strong>
+              </span>
             </>
           )}
         </div>

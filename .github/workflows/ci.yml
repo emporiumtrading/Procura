@@ -29,6 +29,10 @@ jobs:
       - name: Install dependencies
         run: pip install -r backend/requirements.txt
 
+      - name: Audit Python dependencies
+        run: pip install pip-audit && python -m pip_audit -r backend/requirements.txt
+        continue-on-error: true
+
       - name: Run backend tests
         env:
           SUPABASE_URL: https://test.supabase.co
@@ -59,6 +63,19 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Audit npm dependencies
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
 
       - name: Run frontend tests
         run: npm test
@@ -128,6 +145,7 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
           VITE_API_URL: http://localhost:8001/api
+          VITE_E2E_TEST_MODE: "1"
         run: npm run build
 
       - name: Start frontend preview server

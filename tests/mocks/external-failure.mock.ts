@@ -5,42 +5,42 @@ export const externalFailureTesting = {
     db: {
       query: vi.fn(),
       isConnected: vi.fn(),
-      cancelQuery: vi.fn()
+      cancelQuery: vi.fn(),
     },
     cache: {
       get: vi.fn(),
       set: vi.fn(),
-      del: vi.fn()
-    }
+      del: vi.fn(),
+    },
   }),
   mockStripe: () => ({
     paymentIntents: {
       create: vi.fn(),
-      confirm: vi.fn()
+      confirm: vi.fn(),
     },
     subscriptions: {
       create: vi.fn(),
-      cancel: vi.fn()
+      cancel: vi.fn(),
     },
     webhooks: {
-      constructEvent: vi.fn()
+      constructEvent: vi.fn(),
     },
     plans: {
-      list: vi.fn()
-    }
+      list: vi.fn(),
+    },
   }),
   mockExternalScrapers: () => ({
     scrapeSamGov: vi.fn(),
     scrapeGovCon: vi.fn(),
     authenticateWithSource: vi.fn(),
     useCachedData: vi.fn(),
-    useFallbackParser: vi.fn()
+    useFallbackParser: vi.fn(),
   }),
   mockNetwork: () => ({
     isOnline: vi.fn(),
     getConnectionType: vi.fn(),
     canReachService: vi.fn(),
-    reconnectServices: vi.fn()
+    reconnectServices: vi.fn(),
   }),
   mockCircuitBreaker: () => ({
     isOpen: vi.fn(),
@@ -48,7 +48,7 @@ export const externalFailureTesting = {
     getHalfOpen: vi.fn(),
     getFailureCount: vi.fn(),
     close: vi.fn(),
-    closeAll: vi.fn()
+    closeAll: vi.fn(),
   }),
   saveOpportunity: vi.fn(async (_opportunity: any) => ({})),
   getOpportunities: vi.fn(async () => ({})),
@@ -68,5 +68,5 @@ export const externalFailureTesting = {
   scrapeWithRetry: vi.fn(async () => ({})),
   scrapeWithMaxRetries: vi.fn(async (_maxRetries: number) => ({})),
   testHalfOpenCircuit: vi.fn(async () => ({})),
-  performOperationAfterRecovery: vi.fn(async () => ({}))
+  performOperationAfterRecovery: vi.fn(async () => ({})),
 };

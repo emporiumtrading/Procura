@@ -5,6 +5,7 @@ Loads all environment variables and provides type-safe access
 import os
 from functools import lru_cache
 from typing import Optional
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -79,7 +80,10 @@ class Settings(BaseSettings):
     # Discovery Settings
     DISCOVERY_DEFAULT_INTERVAL_MINUTES: int = 15
     DISCOVERY_MAX_RETRIES: int = 3
-    
+
+    # Error Reporting (optional - no-op when not set)
+    SENTRY_DSN: Optional[str] = None
+
     # ===========================================
     # Computed Properties
     # ===========================================
@@ -99,7 +103,26 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.ENVIRONMENT == "production"
-    
+
+    @model_validator(mode="after")
+    def require_production_secrets(self) -> "Settings":
+        """Fail startup in production if required secrets are missing."""
+        if self.ENVIRONMENT != "production":
+            return self
+        missing = []
+        if not (self.SUPABASE_SERVICE_ROLE_KEY or "").strip():
+            missing.append("SUPABASE_SERVICE_ROLE_KEY")
+        if not (self.VAULT_ENCRYPTION_KEY or "").strip():
+            missing.append("VAULT_ENCRYPTION_KEY")
+        if not (self.AUDIT_SIGNING_KEY or "").strip():
+            missing.append("AUDIT_SIGNING_KEY")
+        if missing:
+            raise ValueError(
+                f"Production requires these secrets: {', '.join(missing)}. "
+                "Set them in your environment or .env."
+            )
+        return self
+
     @property
     def supabase_key(self) -> str:
         """Return service role key if available, otherwise anon key"""

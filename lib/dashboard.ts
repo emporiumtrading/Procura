@@ -1,4 +1,10 @@
-export type OpportunityStatus = 'new' | 'reviewing' | 'qualified' | 'disqualified' | 'submitted' | string;
+export type OpportunityStatus =
+  | 'new'
+  | 'reviewing'
+  | 'qualified'
+  | 'disqualified'
+  | 'submitted'
+  | string;
 
 export type OpportunityRecord = {
   id: string;
@@ -64,7 +70,11 @@ export const formatCurrency = (value?: number | string | null) => {
   if (value === null || value === undefined || value === '') return 'TBD';
   const n = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(n)) return 'TBD';
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(n);
 };
 
 export const formatStatus = (status?: string | null) =>
@@ -83,11 +93,25 @@ export const getOpportunityCategory = (opp: OpportunityRecord) => {
   const naics = (opp.naics_code ?? '').trim();
   const text = `${opp.title} ${opp.description ?? ''}`.toLowerCase();
 
-  if (naics.startsWith('5415') || text.includes('software') || text.includes('cloud') || text.includes('cyber')) return 'IT / Software';
-  if (naics.startsWith('236') || naics.startsWith('237') || naics.startsWith('238') || text.includes('construction')) return 'Construction';
-  if (naics.startsWith('561') || text.includes('janitorial') || text.includes('security guard')) return 'Facilities / Ops';
+  if (
+    naics.startsWith('5415') ||
+    text.includes('software') ||
+    text.includes('cloud') ||
+    text.includes('cyber')
+  )
+    return 'IT / Software';
+  if (
+    naics.startsWith('236') ||
+    naics.startsWith('237') ||
+    naics.startsWith('238') ||
+    text.includes('construction')
+  )
+    return 'Construction';
+  if (naics.startsWith('561') || text.includes('janitorial') || text.includes('security guard'))
+    return 'Facilities / Ops';
   if (naics.startsWith('5413') || text.includes('engineering')) return 'Engineering';
-  if (naics.startsWith('621') || text.includes('medical') || text.includes('clinical')) return 'Healthcare';
+  if (naics.startsWith('621') || text.includes('medical') || text.includes('clinical'))
+    return 'Healthcare';
 
   return 'Other';
 };
@@ -98,8 +122,7 @@ export const extractLinks = (opp: OpportunityRecord): OpportunityLinks => {
   // SAM.gov API returns `uiLink` with direct notice URLs
   // Also check for noticeId to construct direct link
   let samUrl: string | null =
-    raw.uiLink || raw.ui_link ||
-    raw.sam_url || raw.samUrl || raw.sam_link || raw.url || null;
+    raw.uiLink || raw.ui_link || raw.sam_url || raw.samUrl || raw.sam_link || raw.url || null;
 
   // If no direct URL found but we have a noticeId, construct one
   const nid = raw.noticeId || raw.notice_id;
@@ -107,13 +130,18 @@ export const extractLinks = (opp: OpportunityRecord): OpportunityLinks => {
     samUrl = `https://sam.gov/opp/${nid}/view`;
   }
 
-  const descriptionUrl = raw.description_url || raw.descriptionUrl || raw.additional_info_link || raw.additionalInfoLink || null;
+  const descriptionUrl =
+    raw.description_url ||
+    raw.descriptionUrl ||
+    raw.additional_info_link ||
+    raw.additionalInfoLink ||
+    null;
 
   const resourcesRaw = raw.resource_links_array || raw.resourceLinks || raw.resource_links || [];
   const resourceLinks = Array.isArray(resourcesRaw)
     ? resourcesRaw
-      .map((r) => (typeof r === 'string' ? r : r?.url))
-      .filter((r) => typeof r === 'string' && r.startsWith('http'))
+        .map((r) => (typeof r === 'string' ? r : r?.url))
+        .filter((r) => typeof r === 'string' && r.startsWith('http'))
     : [];
 
   return {
@@ -127,8 +155,10 @@ export const extractContractMetadata = (opp: OpportunityRecord): OpportunityCont
   const raw = coerceRawData(opp.raw_data);
   const noticeType = raw.notice_type || raw.noticeType || null;
   const psc = raw.psc || null;
-  const company = raw.awardee_name || raw.recipient_name || raw.vendor_name || raw.company_name || null;
-  const place = raw.performance_state_name || raw.performance_city_name || raw.office_country_name || null;
+  const company =
+    raw.awardee_name || raw.recipient_name || raw.vendor_name || raw.company_name || null;
+  const place =
+    raw.performance_state_name || raw.performance_city_name || raw.office_country_name || null;
 
   return {
     noticeType: typeof noticeType === 'string' ? noticeType : null,
@@ -165,10 +195,10 @@ export const getSamSearchUrl = (opp: OpportunityRecord) => {
 };
 
 export const getSamNoticeUrl = (opp: OpportunityRecord) => {
-  // Construct direct link if possible. 
+  // Construct direct link if possible.
   // SAM.gov notice IDs are often the external_ref, or we can use the solicitation number.
   // Format: https://sam.gov/opp/[noticeId]/view
-  // However, without the internal SAM.gov ID (which is a UUID), we can't deep link reliably 
+  // However, without the internal SAM.gov ID (which is a UUID), we can't deep link reliably
   // EXCEPT via the search or if we store the `uiLink` from the API.
 
   // If we have a direct URL in the raw data, use it.
@@ -184,4 +214,3 @@ export const getPrimaryLink = (opp: OpportunityRecord) => {
   // Prefer the direct SAM URL if invalid, otherwise search
   return links.samUrl || links.descriptionUrl || links.resourceLinks[0] || getSamSearchUrl(opp);
 };
-

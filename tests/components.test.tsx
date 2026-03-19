@@ -23,7 +23,7 @@ describe('ErrorBoundary', () => {
     render(
       <ErrorBoundary>
         <ThrowingComponent message="Test explosion" />
-      </ErrorBoundary>,
+      </ErrorBoundary>
     );
 
     expect(screen.getByText('Something went wrong')).toBeInTheDocument();
@@ -37,7 +37,7 @@ describe('ErrorBoundary', () => {
     render(
       <ErrorBoundary>
         <div>Everything is fine</div>
-      </ErrorBoundary>,
+      </ErrorBoundary>
     );
 
     expect(screen.getByText('Everything is fine')).toBeInTheDocument();
@@ -53,15 +53,13 @@ describe('NotFound', () => {
     render(
       <MemoryRouter>
         <NotFound />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
     expect(screen.getByText('404')).toBeInTheDocument();
     expect(screen.getByText('Page not found')).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "The page you're looking for doesn't exist or has been moved.",
-      ),
+      screen.getByText("The page you're looking for doesn't exist or has been moved.")
     ).toBeInTheDocument();
   });
 
@@ -69,7 +67,7 @@ describe('NotFound', () => {
     render(
       <MemoryRouter>
         <NotFound />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
     expect(screen.getByText('Go Back')).toBeInTheDocument();

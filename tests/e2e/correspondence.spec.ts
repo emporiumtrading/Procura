@@ -38,7 +38,10 @@ test.describe('Correspondence', () => {
 
   test('notification bell is present', async ({ page }) => {
     // Bell icon button should exist
-    const bell = page.locator('button').filter({ has: page.locator('svg') }).first();
+    const bell = page
+      .locator('button')
+      .filter({ has: page.locator('svg') })
+      .first();
     await expect(bell).toBeVisible();
   });
 

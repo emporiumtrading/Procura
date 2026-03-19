@@ -7,12 +7,14 @@ Use this checklist to verify all implemented features are working correctly.
 ## ✅ Phase 1: Codebase Cleanup
 
 ### Files Deleted
+
 - [ ] `pages/CredentialsAdmin.tsx` - File no longer exists
 - [ ] `pages/RunHistory.tsx` - File no longer exists
 - [ ] Routes removed from `App.tsx`
 - [ ] Links removed from `Sidebar.tsx`
 
 ### Sidebar Navigation
+
 - [ ] Only 5 nav items visible (Dashboard, Submissions, Workspace, Admin, Audit Logs)
 - [ ] Hover tooltips appear on all nav items
 - [ ] Tooltips are descriptive and helpful
@@ -20,6 +22,7 @@ Use this checklist to verify all implemented features are working correctly.
 - [ ] Active route highlights correctly
 
 ### AdminDashboard
+
 - [ ] No hardcoded mock data visible
 - [ ] Overview shows real system metrics
 - [ ] Users tab loads from API
@@ -36,6 +39,7 @@ Use this checklist to verify all implemented features are working correctly.
 ## ✅ Phase 2: Permanent Side Panel
 
 ### Desktop Layout (>= 1024px)
+
 - [ ] Dashboard shows side-by-side layout
 - [ ] Left: Opportunity list
 - [ ] Right: Detail panel (520px wide, always visible)
@@ -47,6 +51,7 @@ Use this checklist to verify all implemented features are working correctly.
 - [ ] Panel scrolls independently from list
 
 ### Mobile Layout (< 1024px)
+
 - [ ] Opportunity list full-width
 - [ ] No detail panel visible initially
 - [ ] Tapping opportunity opens modal drawer
@@ -57,6 +62,7 @@ Use this checklist to verify all implemented features are working correctly.
 - [ ] Modal slides in from right
 
 ### Responsive Transition
+
 - [ ] Resize browser from desktop to mobile - layout changes
 - [ ] Resize from mobile to desktop - panel appears
 - [ ] Selected opportunity persists across resize
@@ -67,6 +73,7 @@ Use this checklist to verify all implemented features are working correctly.
 ## ✅ Phase 3: Frontend-Backend Connection
 
 ### Port Configuration
+
 - [ ] Backend starts on port 8001 (not 8000)
 - [ ] Frontend connects to port 8001
 - [ ] Health check works: `http://localhost:8001/health`
@@ -75,7 +82,9 @@ Use this checklist to verify all implemented features are working correctly.
 - [ ] API calls succeed (check Network tab)
 
 ### API Client Retry Logic
+
 **Test by temporarily stopping backend:**
+
 - [ ] Network error shows helpful message
 - [ ] Request retries automatically (check Network tab)
 - [ ] After 2 retries, shows final error
@@ -83,6 +92,7 @@ Use this checklist to verify all implemented features are working correctly.
 - [ ] Error message includes endpoint info
 
 **Test with backend running:**
+
 - [ ] Fast responses work normally
 - [ ] No unnecessary retries for 2xx responses
 - [ ] 4xx errors don't retry (correct behavior)
@@ -92,7 +102,9 @@ Use this checklist to verify all implemented features are working correctly.
 ## ✅ Phase 4: Backend Health Check
 
 ### Health Endpoint
+
 **Visit `http://localhost:8001/health`**:
+
 - [ ] Response includes `"status": "healthy"`
 - [ ] Shows database check result
 - [ ] Shows redis check result (or "not configured")
@@ -100,6 +112,7 @@ Use this checklist to verify all implemented features are working correctly.
 - [ ] Database shows "connected" (not "TODO")
 
 **Test with database offline**:
+
 - [ ] Status changes to "degraded"
 - [ ] Database check shows error message
 - [ ] Error message is truncated (not exposing full stack)
@@ -111,11 +124,13 @@ Use this checklist to verify all implemented features are working correctly.
 ### Loading States - Dashboard
 
 **Initial Load**:
+
 - [ ] Shows "Loading opportunities..." with spinner
 - [ ] No flash of empty state
 - [ ] Transitions smoothly to loaded state
 
 **Sync Button**:
+
 - [ ] Shows "Sync Opportunities" label
 - [ ] Tooltip: "Fetch latest opportunities from SAM.gov..."
 - [ ] During sync: spinner animates, text "Syncing..."
@@ -123,12 +138,14 @@ Use this checklist to verify all implemented features are working correctly.
 - [ ] Success message appears
 
 **Refresh Button**:
+
 - [ ] Shows "Refresh List" label
 - [ ] Tooltip: "Reload the current opportunity list"
 - [ ] During load: spinner animates
 - [ ] List updates after completion
 
 **AI Qualify Button**:
+
 - [ ] Shows "AI Qualify" label (not "Qualify (AI)")
 - [ ] Tooltip: "Score this opportunity using AI..."
 - [ ] During qualify: spinner animates
@@ -136,12 +153,14 @@ Use this checklist to verify all implemented features are working correctly.
 - [ ] AI summary updates
 
 **Start Proposal Button**:
+
 - [ ] Shows "Start Proposal" label (not "Create Workspace")
 - [ ] Tooltip: "Create submission workspace to start..."
 - [ ] During creation: spinner animates
 - [ ] Navigates to workspace after success
 
 **Disqualify Button**:
+
 - [ ] Tooltip: "Mark this opportunity as not suitable..."
 - [ ] Prompts for reason (optional)
 - [ ] Updates status in list
@@ -149,6 +168,7 @@ Use this checklist to verify all implemented features are working correctly.
 ### Empty States
 
 **No Opportunities (initial load)**:
+
 - [ ] Shows Search icon (64px, gray)
 - [ ] Heading: "No opportunities found"
 - [ ] Message: "Click 'Sync Opportunities' to fetch..."
@@ -156,18 +176,22 @@ Use this checklist to verify all implemented features are working correctly.
 - [ ] Button works (triggers sync)
 
 **No Opportunities (after filtering)**:
+
 - [ ] Shows Search icon
 - [ ] Message: "Try adjusting your filters..."
 - [ ] No sync button (data exists, just filtered)
 
 **No Selection (desktop only)**:
+
 - [ ] Shows FileText icon (64px, gray)
 - [ ] Heading: "Select an opportunity"
 - [ ] Message: "Click on any opportunity from the list..."
 - [ ] Center aligned, good spacing
 
 ### Button Tooltips
+
 Hover over each button to verify tooltips:
+
 - [ ] "Sync Opportunities" - tooltip appears
 - [ ] "Refresh List" - tooltip appears
 - [ ] "Open Source" - tooltip appears
@@ -181,12 +205,14 @@ Hover over each button to verify tooltips:
 ## 🔄 Full Workflow Test
 
 ### 1. Login
+
 - [ ] Navigate to `http://localhost:5173`
 - [ ] See Procura login page
 - [ ] Sign in with Supabase credentials
 - [ ] Redirect to Dashboard
 
 ### 2. Dashboard - Browse
+
 - [ ] See opportunity list on left (desktop)
 - [ ] See detail panel on right (desktop)
 - [ ] First opportunity auto-selected
@@ -195,6 +221,7 @@ Hover over each button to verify tooltips:
 - [ ] Scores show (if opportunity qualified)
 
 ### 3. Sync Opportunities
+
 - [ ] Click "Sync Opportunities" button
 - [ ] See "Syncing..." message
 - [ ] Wait for completion
@@ -202,6 +229,7 @@ Hover over each button to verify tooltips:
 - [ ] Success message shows count
 
 ### 4. Filter & Search
+
 - [ ] Search by title - list filters
 - [ ] Filter by status - list filters
 - [ ] Filter by source - list filters
@@ -210,6 +238,7 @@ Hover over each button to verify tooltips:
 - [ ] Clear filters - full list returns
 
 ### 5. AI Qualification
+
 - [ ] Select an unqualified opportunity
 - [ ] Click "AI Qualify" button
 - [ ] See spinner in button
@@ -219,6 +248,7 @@ Hover over each button to verify tooltips:
 - [ ] Status changes to "Qualified"
 
 ### 6. Create Submission
+
 - [ ] Select a qualified opportunity
 - [ ] Click "Start Proposal" button
 - [ ] See spinner
@@ -227,12 +257,14 @@ Hover over each button to verify tooltips:
 - [ ] Can edit submission
 
 ### 7. Submissions Page
+
 - [ ] Click "Submissions" in sidebar
 - [ ] See list of submissions
 - [ ] New submission from step 6 appears
 - [ ] Can filter and search submissions
 
 ### 8. Admin Dashboard
+
 - [ ] Click "Admin" in sidebar
 - [ ] Overview tab shows real metrics (not mock)
 - [ ] Users tab loads user list
@@ -242,12 +274,14 @@ Hover over each button to verify tooltips:
 - [ ] No mock data visible anywhere
 
 ### 9. Audit Logs
+
 - [ ] Click "Audit Logs" in sidebar
 - [ ] See audit trail entries
 - [ ] Can verify signatures
 - [ ] Can export logs
 
 ### 10. Mobile Testing
+
 - [ ] Resize browser to mobile width (<1024px)
 - [ ] Dashboard switches to mobile layout
 - [ ] List shows full-width
@@ -261,6 +295,7 @@ Hover over each button to verify tooltips:
 ## 🐛 Error Handling Tests
 
 ### Network Errors
+
 - [ ] Stop backend server
 - [ ] Try to sync - shows error message
 - [ ] Error is user-friendly
@@ -268,16 +303,19 @@ Hover over each button to verify tooltips:
 - [ ] Restart backend - app recovers
 
 ### Invalid Data
+
 - [ ] Opportunity with missing fields - handles gracefully
 - [ ] Invalid date format - shows fallback
 - [ ] Missing score - shows "---"
 
 ### API Timeouts
+
 - [ ] Long-running request (if available)
 - [ ] Shows timeout after 30 seconds
 - [ ] Error message helpful
 
 ### Authentication
+
 - [ ] Logout - redirects to login
 - [ ] Try to access protected route - redirects
 - [ ] Login again - redirects to dashboard
@@ -287,17 +325,20 @@ Hover over each button to verify tooltips:
 ## 📊 Performance Checks
 
 ### Load Times
+
 - [ ] Dashboard loads in < 2 seconds (normal network)
 - [ ] Opportunity list renders smoothly (100+ items)
 - [ ] Switching opportunities is instant
 - [ ] Filters apply without lag
 
 ### Memory
+
 - [ ] No memory leaks (check DevTools Memory tab)
 - [ ] Browser doesn't slow down over time
 - [ ] Can browse 100+ opportunities smoothly
 
 ### Network
+
 - [ ] API calls are reasonable size
 - [ ] No duplicate requests
 - [ ] Retry logic doesn't spam
@@ -308,6 +349,7 @@ Hover over each button to verify tooltips:
 ## 📱 Browser Compatibility
 
 Test in multiple browsers:
+
 - [ ] Chrome/Edge (latest)
 - [ ] Firefox (latest)
 - [ ] Safari (if Mac available)
@@ -319,6 +361,7 @@ Test in multiple browsers:
 ## ✅ Acceptance Criteria
 
 ### Must Pass
+
 - [x] All Phase 1-5 tests pass
 - [x] Full workflow completes without errors
 - [x] No mock data visible
@@ -329,6 +372,7 @@ Test in multiple browsers:
 - [x] Empty states are helpful
 
 ### Nice to Have
+
 - [ ] Performance is excellent
 - [ ] Error messages are very clear
 - [ ] UI is polished and professional
@@ -338,19 +382,23 @@ Test in multiple browsers:
 
 ## 🎯 Sign-Off
 
-**Tested By**: ___________________
-**Date**: ___________________
-**Status**: ☐ Pass  ☐ Fail  ☐ Pass with minor issues
+**Tested By**: **\*\*\*\***\_\_\_**\*\*\*\***
+**Date**: **\*\*\*\***\_\_\_**\*\*\*\***
+**Status**: ☐ Pass ☐ Fail ☐ Pass with minor issues
 
 **Issues Found**:
-1. _____________________________________
-2. _____________________________________
-3. _____________________________________
+
+1. ***
+2. ***
+3. ***
 
 **Notes**:
-_______________________________________________
-_______________________________________________
-_______________________________________________
+
+---
+
+---
+
+---
 
 ---
 

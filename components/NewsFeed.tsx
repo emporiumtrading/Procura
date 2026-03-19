@@ -115,7 +115,8 @@ const NewsFeed: React.FC = () => {
           <Newspaper size={32} className="text-gray-300 mx-auto mb-2" />
           <p className="text-sm text-gray-600 font-medium">News feed not available</p>
           <p className="text-xs text-gray-500 mt-1">
-            The NEWS_API_KEY is not configured on the server. Add it in Settings to enable market intelligence.
+            The NEWS_API_KEY is not configured on the server. Add it in Settings to enable market
+            intelligence.
           </p>
         </div>
       </div>
@@ -204,12 +205,19 @@ const NewsFeed: React.FC = () => {
                 <h4 className="text-sm font-medium text-gray-900 leading-snug line-clamp-2 group-hover:text-gray-700">
                   {article.title}
                 </h4>
-                <ExternalLink size={14} className="text-gray-300 group-hover:text-gray-500 shrink-0 mt-0.5" />
+                <ExternalLink
+                  size={14}
+                  className="text-gray-300 group-hover:text-gray-500 shrink-0 mt-0.5"
+                />
               </div>
               <div className="flex items-center gap-2 mt-1.5">
-                <span className="text-[11px] font-medium text-gray-500">{article.source?.name}</span>
+                <span className="text-[11px] font-medium text-gray-500">
+                  {article.source?.name}
+                </span>
                 <span className="text-[11px] text-gray-300">|</span>
-                <span className="text-[11px] text-gray-400">{relativeTime(article.publishedAt)}</span>
+                <span className="text-[11px] text-gray-400">
+                  {relativeTime(article.publishedAt)}
+                </span>
               </div>
               {article.description && (
                 <p className="text-xs text-gray-500 mt-1.5 leading-relaxed line-clamp-2">

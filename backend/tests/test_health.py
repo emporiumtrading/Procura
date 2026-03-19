@@ -67,4 +67,5 @@ class TestHealthEndpoint:
             data = test_app.get("/health").json()
 
         assert data["status"] == "degraded"
-        assert "error:" in data["checks"]["redis"]
+        # Sanitized: no raw error strings in health output
+        assert data["checks"]["redis"] in ("unavailable", "error: connection failed")

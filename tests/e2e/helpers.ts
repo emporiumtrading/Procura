@@ -24,7 +24,7 @@ function validateE2ECredentials() {
   if (missing.length > 0) {
     throw new Error(
       `E2E credentials not configured. Missing environment variables: ${missing.join(', ')}\n` +
-      'Set these in your .env file or CI environment before running tests.'
+        'Set these in your .env file or CI environment before running tests.'
     );
   }
 }

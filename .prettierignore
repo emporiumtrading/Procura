@@ -1,0 +1,8 @@
+node_modules
+dist
+playwright-report
+test-results
+*.min.js
+package-lock.json
+.cursor
+.pytest_cache

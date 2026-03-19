@@ -1,8 +1,22 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Key, Eye, EyeOff, Save, CheckCircle, XCircle, Loader2,
-  RefreshCw, AlertTriangle, Shield, Cpu, Database, Bot,
-  ChevronDown, ChevronRight, Zap, Settings as SettingsIcon
+  Key,
+  Eye,
+  EyeOff,
+  Save,
+  CheckCircle,
+  XCircle,
+  Loader2,
+  RefreshCw,
+  AlertTriangle,
+  Shield,
+  Cpu,
+  Database,
+  Bot,
+  ChevronDown,
+  ChevronRight,
+  Zap,
+  Settings as SettingsIcon,
 } from 'lucide-react';
 import { api } from '../lib/api';
 
@@ -119,7 +133,7 @@ const Settings: React.FC = () => {
         setError(response.error);
       } else {
         setSaveSuccess(keyName);
-        setKeyInputs(prev => ({ ...prev, [keyName]: '' }));
+        setKeyInputs((prev) => ({ ...prev, [keyName]: '' }));
         await loadAPIKeys();
         setTimeout(() => setSaveSuccess(null), 3000);
       }
@@ -132,16 +146,22 @@ const Settings: React.FC = () => {
 
   const handleTestKey = async (keyName: string) => {
     setTestingKey(keyName);
-    setTestResults(prev => ({ ...prev, [keyName]: null }));
+    setTestResults((prev) => ({ ...prev, [keyName]: null }));
     try {
       const response = await api.testAPIKey(keyName);
       if (response.data) {
-        setTestResults(prev => ({ ...prev, [keyName]: response.data }));
+        setTestResults((prev) => ({ ...prev, [keyName]: response.data }));
       } else {
-        setTestResults(prev => ({ ...prev, [keyName]: { success: false, error: response.error || 'Test failed' } }));
+        setTestResults((prev) => ({
+          ...prev,
+          [keyName]: { success: false, error: response.error || 'Test failed' },
+        }));
       }
     } catch {
-      setTestResults(prev => ({ ...prev, [keyName]: { success: false, error: 'Network error' } }));
+      setTestResults((prev) => ({
+        ...prev,
+        [keyName]: { success: false, error: 'Network error' },
+      }));
     } finally {
       setTestingKey(null);
     }
@@ -150,7 +170,7 @@ const Settings: React.FC = () => {
   const handleDeleteKey = async (keyName: string) => {
     try {
       await api.deleteAPIKey(keyName);
-      setKeyInputs(prev => ({ ...prev, [keyName]: '' }));
+      setKeyInputs((prev) => ({ ...prev, [keyName]: '' }));
       await loadAPIKeys();
     } catch {
       setError(`Failed to delete ${keyName}`);
@@ -177,10 +197,13 @@ const Settings: React.FC = () => {
   };
 
   const toggleSection = (section: string) => {
-    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+    setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
   };
 
-  const categoryConfig: Record<string, { label: string; icon: React.ReactNode; description: string }> = {
+  const categoryConfig: Record<
+    string,
+    { label: string; icon: React.ReactNode; description: string }
+  > = {
     discovery: {
       label: 'Discovery Sources',
       icon: <Database size={20} />,
@@ -207,7 +230,10 @@ const Settings: React.FC = () => {
     const justSaved = saveSuccess === keyName;
 
     return (
-      <div key={keyName} className="p-4 rounded-xl border border-gray-100 bg-white hover:border-gray-200 transition-colors">
+      <div
+        key={keyName}
+        className="p-4 rounded-xl border border-gray-100 bg-white hover:border-gray-200 transition-colors"
+      >
         <div className="flex items-start justify-between mb-3">
           <div>
             <div className="flex items-center gap-2">
@@ -222,7 +248,9 @@ const Settings: React.FC = () => {
                 </span>
               )}
               {info.source && (
-                <span className="text-[10px] text-gray-400 font-medium uppercase">{info.source}</span>
+                <span className="text-[10px] text-gray-400 font-medium uppercase">
+                  {info.source}
+                </span>
               )}
             </div>
             <p className="text-xs text-gray-500 mt-0.5">{info.description}</p>
@@ -253,15 +281,21 @@ const Settings: React.FC = () => {
         {info.configured && info.preview && (
           <div className="flex items-center gap-2 mb-3">
             <span className="text-xs text-gray-400">Current:</span>
-            <code className="text-xs font-mono bg-gray-50 px-2 py-1 rounded text-gray-600">{info.preview}</code>
+            <code className="text-xs font-mono bg-gray-50 px-2 py-1 rounded text-gray-600">
+              {info.preview}
+            </code>
           </div>
         )}
 
         {/* Test result */}
         {testResult && (
-          <div className={`flex items-center gap-2 mb-3 p-2 rounded-lg text-xs font-medium ${testResult.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+          <div
+            className={`flex items-center gap-2 mb-3 p-2 rounded-lg text-xs font-medium ${testResult.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}
+          >
             {testResult.success ? <CheckCircle size={14} /> : <XCircle size={14} />}
-            {testResult.success ? (testResult.message || 'Connection successful') : (testResult.error || 'Connection failed')}
+            {testResult.success
+              ? testResult.message || 'Connection successful'
+              : testResult.error || 'Connection failed'}
           </div>
         )}
 
@@ -272,12 +306,12 @@ const Settings: React.FC = () => {
             <input
               type={isVisible ? 'text' : 'password'}
               value={inputValue}
-              onChange={(e) => setKeyInputs(prev => ({ ...prev, [keyName]: e.target.value }))}
+              onChange={(e) => setKeyInputs((prev) => ({ ...prev, [keyName]: e.target.value }))}
               placeholder={info.configured ? 'Enter new key to update...' : 'Enter API key...'}
               className="w-full pl-9 pr-10 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-gray-900 outline-none font-mono placeholder:font-sans transition-all"
             />
             <button
-              onClick={() => setKeyVisibility(prev => ({ ...prev, [keyName]: !isVisible }))}
+              onClick={() => setKeyVisibility((prev) => ({ ...prev, [keyName]: !isVisible }))}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
             >
               {isVisible ? <EyeOff size={14} /> : <Eye size={14} />}
@@ -287,9 +321,7 @@ const Settings: React.FC = () => {
             onClick={() => handleSaveKey(keyName)}
             disabled={!inputValue.trim() || isSaving}
             className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-              justSaved
-                ? 'bg-green-600 text-white'
-                : 'bg-gray-900 text-white hover:bg-gray-800'
+              justSaved ? 'bg-green-600 text-white' : 'bg-gray-900 text-white hover:bg-gray-800'
             }`}
           >
             {isSaving ? (
@@ -306,12 +338,15 @@ const Settings: React.FC = () => {
     );
   };
 
-  const keysByCategory = Object.entries(keys).reduce<Record<string, [string, APIKeyInfo][]>>((acc, [keyName, info]) => {
-    const cat = info.category || 'other';
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push([keyName, info]);
-    return acc;
-  }, {});
+  const keysByCategory = Object.entries(keys).reduce<Record<string, [string, APIKeyInfo][]>>(
+    (acc, [keyName, info]) => {
+      const cat = info.category || 'other';
+      if (!acc[cat]) acc[cat] = [];
+      acc[cat].push([keyName, info]);
+      return acc;
+    },
+    {}
+  );
 
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-gray-50 overflow-hidden">
@@ -323,11 +358,16 @@ const Settings: React.FC = () => {
           </div>
           <div>
             <h1 className="text-lg font-bold text-gray-900">Settings</h1>
-            <p className="text-xs text-gray-500">Manage API keys, providers, and system configuration</p>
+            <p className="text-xs text-gray-500">
+              Manage API keys, providers, and system configuration
+            </p>
           </div>
         </div>
         <button
-          onClick={() => { loadAPIKeys(); loadGeneral(); }}
+          onClick={() => {
+            loadAPIKeys();
+            loadGeneral();
+          }}
           className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
         >
           <RefreshCw size={14} />
@@ -374,7 +414,10 @@ const Settings: React.FC = () => {
           <div className="mb-4 p-3 rounded-xl border border-red-200 bg-red-50 flex items-center gap-2">
             <XCircle size={16} className="text-red-600 shrink-0" />
             <p className="text-sm text-red-700">{error}</p>
-            <button onClick={() => setError(null)} className="ml-auto text-red-400 hover:text-red-600">
+            <button
+              onClick={() => setError(null)}
+              className="ml-auto text-red-400 hover:text-red-600"
+            >
               <XCircle size={14} />
             </button>
           </div>
@@ -395,7 +438,8 @@ const Settings: React.FC = () => {
                   <div>
                     <p className="text-sm font-medium text-blue-900">Secure Key Storage</p>
                     <p className="text-xs text-blue-700 mt-0.5">
-                      API keys are encrypted with AES-128 (Fernet) before storage. Keys stored here override environment variables.
+                      API keys are encrypted with AES-128 (Fernet) before storage. Keys stored here
+                      override environment variables.
                     </p>
                   </div>
                 </div>
@@ -407,7 +451,10 @@ const Settings: React.FC = () => {
                   const isExpanded = expandedSections[category] !== false;
 
                   return (
-                    <div key={category} className="rounded-2xl border border-gray-200 bg-gray-50/50 overflow-hidden">
+                    <div
+                      key={category}
+                      className="rounded-2xl border border-gray-200 bg-gray-50/50 overflow-hidden"
+                    >
                       <button
                         onClick={() => toggleSection(category)}
                         className="w-full flex items-center justify-between p-4 hover:bg-gray-100/50 transition-colors"
@@ -423,9 +470,14 @@ const Settings: React.FC = () => {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-gray-400">
-                            {categoryKeys.filter(([, info]) => info.configured).length}/{categoryKeys.length} configured
+                            {categoryKeys.filter(([, info]) => info.configured).length}/
+                            {categoryKeys.length} configured
                           </span>
-                          {isExpanded ? <ChevronDown size={16} className="text-gray-400" /> : <ChevronRight size={16} className="text-gray-400" />}
+                          {isExpanded ? (
+                            <ChevronDown size={16} className="text-gray-400" />
+                          ) : (
+                            <ChevronRight size={16} className="text-gray-400" />
+                          )}
                         </div>
                       </button>
                       {isExpanded && (
@@ -458,16 +510,23 @@ const Settings: React.FC = () => {
                     </div>
                     <div>
                       <h3 className="text-sm font-semibold text-gray-900">LLM Configuration</h3>
-                      <p className="text-xs text-gray-500">Configure the AI provider for opportunity qualification</p>
+                      <p className="text-xs text-gray-500">
+                        Configure the AI provider for opportunity qualification
+                      </p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1.5">Provider</label>
+                      <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                        Provider
+                      </label>
                       <select
                         value={general.llm_provider}
-                        onChange={(e) => { setGeneral({ ...general, llm_provider: e.target.value }); setGeneralDirty(true); }}
+                        onChange={(e) => {
+                          setGeneral({ ...general, llm_provider: e.target.value });
+                          setGeneralDirty(true);
+                        }}
                         className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-gray-900 outline-none bg-white"
                       >
                         <option value="anthropic">Anthropic (Claude)</option>
@@ -476,11 +535,16 @@ const Settings: React.FC = () => {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1.5">Model</label>
+                      <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                        Model
+                      </label>
                       <input
                         type="text"
                         value={general.llm_model}
-                        onChange={(e) => { setGeneral({ ...general, llm_model: e.target.value }); setGeneralDirty(true); }}
+                        onChange={(e) => {
+                          setGeneral({ ...general, llm_model: e.target.value });
+                          setGeneralDirty(true);
+                        }}
                         className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-gray-900 outline-none font-mono"
                       />
                     </div>
@@ -497,7 +561,10 @@ const Settings: React.FC = () => {
                         max="1"
                         step="0.1"
                         value={general.llm_temperature}
-                        onChange={(e) => { setGeneral({ ...general, llm_temperature: parseFloat(e.target.value) }); setGeneralDirty(true); }}
+                        onChange={(e) => {
+                          setGeneral({ ...general, llm_temperature: parseFloat(e.target.value) });
+                          setGeneralDirty(true);
+                        }}
                         className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-gray-900"
                       />
                       <div className="flex justify-between text-[10px] text-gray-400 mt-1">
@@ -506,11 +573,19 @@ const Settings: React.FC = () => {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1.5">Max Tokens</label>
+                      <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                        Max Tokens
+                      </label>
                       <input
                         type="number"
                         value={general.llm_max_tokens}
-                        onChange={(e) => { setGeneral({ ...general, llm_max_tokens: parseInt(e.target.value) || 2048 }); setGeneralDirty(true); }}
+                        onChange={(e) => {
+                          setGeneral({
+                            ...general,
+                            llm_max_tokens: parseInt(e.target.value) || 2048,
+                          });
+                          setGeneralDirty(true);
+                        }}
                         className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-gray-900 focus:border-gray-900 outline-none"
                         min={256}
                         max={8192}
@@ -528,7 +603,9 @@ const Settings: React.FC = () => {
                       </div>
                       <div>
                         <h3 className="text-sm font-semibold text-gray-900">Browser Automation</h3>
-                        <p className="text-xs text-gray-500">OpenManus / browser-use powered submission engine</p>
+                        <p className="text-xs text-gray-500">
+                          OpenManus / browser-use powered submission engine
+                        </p>
                       </div>
                     </div>
                     <button
@@ -536,7 +613,11 @@ const Settings: React.FC = () => {
                       disabled={automationLoading}
                       className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
                     >
-                      {automationLoading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                      {automationLoading ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : (
+                        <RefreshCw size={12} />
+                      )}
                       Check Status
                     </button>
                   </div>
@@ -549,22 +630,37 @@ const Settings: React.FC = () => {
                         { key: 'chromium_available', label: 'Chromium browser' },
                         { key: 'llm_configured', label: 'LLM API key' },
                       ].map(({ key, label }) => (
-                        <div key={key} className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
-                          automationStatus[key]
-                            ? 'bg-green-50 text-green-700 border border-green-200'
-                            : 'bg-red-50 text-red-700 border border-red-200'
-                        }`}>
-                          {automationStatus[key] ? <CheckCircle size={14} /> : <XCircle size={14} />}
+                        <div
+                          key={key}
+                          className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
+                            automationStatus[key]
+                              ? 'bg-green-50 text-green-700 border border-green-200'
+                              : 'bg-red-50 text-red-700 border border-red-200'
+                          }`}
+                        >
+                          {automationStatus[key] ? (
+                            <CheckCircle size={14} />
+                          ) : (
+                            <XCircle size={14} />
+                          )}
                           <span className="font-medium">{label}</span>
                         </div>
                       ))}
-                      <div className={`col-span-2 flex items-center gap-2 p-3 rounded-lg text-sm font-semibold ${
-                        automationStatus.ready
-                          ? 'bg-green-100 text-green-800 border border-green-300'
-                          : 'bg-amber-50 text-amber-800 border border-amber-200'
-                      }`}>
-                        {automationStatus.ready ? <CheckCircle size={16} /> : <AlertTriangle size={16} />}
-                        {automationStatus.ready ? 'Automation Ready' : 'Automation Not Ready — configure missing items above'}
+                      <div
+                        className={`col-span-2 flex items-center gap-2 p-3 rounded-lg text-sm font-semibold ${
+                          automationStatus.ready
+                            ? 'bg-green-100 text-green-800 border border-green-300'
+                            : 'bg-amber-50 text-amber-800 border border-amber-200'
+                        }`}
+                      >
+                        {automationStatus.ready ? (
+                          <CheckCircle size={16} />
+                        ) : (
+                          <AlertTriangle size={16} />
+                        )}
+                        {automationStatus.ready
+                          ? 'Automation Ready'
+                          : 'Automation Not Ready — configure missing items above'}
                       </div>
                     </div>
                   ) : automationLoading ? (
@@ -572,7 +668,9 @@ const Settings: React.FC = () => {
                       <Loader2 size={20} className="animate-spin mr-2" /> Checking prerequisites...
                     </div>
                   ) : (
-                    <p className="text-xs text-gray-400 text-center py-4">Click "Check Status" to verify automation readiness</p>
+                    <p className="text-xs text-gray-400 text-center py-4">
+                      Click "Check Status" to verify automation readiness
+                    </p>
                   )}
                 </div>
 
@@ -586,7 +684,9 @@ const Settings: React.FC = () => {
                     </div>
                     <div className="flex justify-between p-3 bg-gray-50 rounded-lg">
                       <span className="text-gray-500">Debug Mode</span>
-                      <span className={`font-medium ${general.debug ? 'text-amber-600' : 'text-green-600'}`}>
+                      <span
+                        className={`font-medium ${general.debug ? 'text-amber-600' : 'text-green-600'}`}
+                      >
                         {general.debug ? 'Enabled' : 'Disabled'}
                       </span>
                     </div>
@@ -601,7 +701,11 @@ const Settings: React.FC = () => {
                       disabled={savingGeneral}
                       className="flex items-center gap-2 px-6 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-medium hover:bg-gray-800 disabled:opacity-50 transition-all shadow-lg"
                     >
-                      {savingGeneral ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                      {savingGeneral ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Save size={16} />
+                      )}
                       Save Changes
                     </button>
                   </div>

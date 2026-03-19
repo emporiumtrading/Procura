@@ -13,6 +13,20 @@ import structlog
 import uvicorn
 
 from .config import settings as app_settings
+
+# Initialize Sentry when DSN is configured (optional)
+if app_settings.SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    sentry_sdk.init(
+        dsn=app_settings.SENTRY_DSN,
+        integrations=[FastApiIntegration()],
+        environment=app_settings.ENVIRONMENT,
+        traces_sample_rate=0.1,
+        profiles_sample_rate=0.1,
+        send_default_pii=False,
+    )
+
 from .routers import opportunities, submissions, connectors, audit, admin, feeds
 from .routers import settings as settings_router
 from .routers import documents, follow_ups, correspondence
@@ -108,7 +122,13 @@ app.add_middleware(
     allow_origins=app_settings.allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allow_headers=["*"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "Accept",
+        "X-Requested-With",
+        "X-Client-Info",
+    ],
     expose_headers=["*"],
     max_age=3600,  # Cache preflight requests for 1 hour
 )
@@ -293,8 +313,10 @@ async def health_check():
         db = get_supabase_client()
         db.table("profiles").select("id").limit(1).execute()
         health_status["checks"]["database"] = "connected"
-    except Exception as e:
-        health_status["checks"]["database"] = f"error: {str(e)[:100]}"
+    except Exception:
+        health_status["checks"]["database"] = (
+            "unavailable" if app_settings.is_production else "error: connection failed"
+        )
         health_status["status"] = "degraded"
 
     # Check Redis whenever a redis:// URL is configured.
@@ -305,8 +327,10 @@ async def health_check():
             r = redis.from_url(redis_url, socket_timeout=2)
             r.ping()
             health_status["checks"]["redis"] = "connected"
-        except Exception as e:
-            health_status["checks"]["redis"] = f"error: {str(e)[:100]}"
+        except Exception:
+            health_status["checks"]["redis"] = (
+                "unavailable" if app_settings.is_production else "error: connection failed"
+            )
             health_status["status"] = "degraded"
     else:
         health_status["checks"]["redis"] = "not configured (optional)"

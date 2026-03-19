@@ -58,3 +58,7 @@ celerybeat-schedule-wal
 # Local dev artifacts
 .logs/
 NUL
+openapi.json
+test-results/
+playwright-report/
+play-debug.txt

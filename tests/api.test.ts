@@ -64,9 +64,7 @@ describe('ProcuraAPI', () => {
 
   describe('GET requests', () => {
     it('getOpportunities builds correct URL with query params', async () => {
-      fetchMock.mockResolvedValueOnce(
-        createMockResponse(200, { items: [], total: 0 }),
-      );
+      fetchMock.mockResolvedValueOnce(createMockResponse(200, { items: [], total: 0 }));
 
       const result = await api.getOpportunities({
         page: 2,
@@ -95,9 +93,7 @@ describe('ProcuraAPI', () => {
     });
 
     it('getOpportunities works with no params', async () => {
-      fetchMock.mockResolvedValueOnce(
-        createMockResponse(200, { items: [] }),
-      );
+      fetchMock.mockResolvedValueOnce(createMockResponse(200, { items: [] }));
 
       const result = await api.getOpportunities();
 
@@ -127,7 +123,7 @@ describe('ProcuraAPI', () => {
       };
 
       fetchMock.mockResolvedValueOnce(
-        createMockResponse(201, { id: 'opp-123', ...opportunityData }),
+        createMockResponse(201, { id: 'opp-123', ...opportunityData })
       );
 
       const result = await api.createOpportunity(opportunityData);
@@ -154,7 +150,7 @@ describe('ProcuraAPI', () => {
       };
 
       fetchMock.mockResolvedValueOnce(
-        createMockResponse(201, { id: 'sub-456', ...submissionData }),
+        createMockResponse(201, { id: 'sub-456', ...submissionData })
       );
 
       const result = await api.createSubmission(submissionData);
@@ -265,9 +261,7 @@ describe('ProcuraAPI', () => {
     });
 
     it('does NOT retry on 4xx client errors', async () => {
-      fetchMock.mockResolvedValueOnce(
-        createMockResponse(400, { detail: 'Bad request' }),
-      );
+      fetchMock.mockResolvedValueOnce(createMockResponse(400, { detail: 'Bad request' }));
 
       const result = await api.getOpportunities();
 
@@ -278,9 +272,7 @@ describe('ProcuraAPI', () => {
     });
 
     it('does NOT retry on 404 errors', async () => {
-      fetchMock.mockResolvedValueOnce(
-        createMockResponse(404, { detail: 'Not found' }),
-      );
+      fetchMock.mockResolvedValueOnce(createMockResponse(404, { detail: 'Not found' }));
 
       const result = await api.getOpportunity('nonexistent');
 
@@ -290,9 +282,7 @@ describe('ProcuraAPI', () => {
     });
 
     it('does NOT retry on 401 unauthorized', async () => {
-      fetchMock.mockResolvedValueOnce(
-        createMockResponse(401, { detail: 'Unauthorized' }),
-      );
+      fetchMock.mockResolvedValueOnce(createMockResponse(401, { detail: 'Unauthorized' }));
 
       const result = await api.getOpportunities();
 

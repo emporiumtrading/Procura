@@ -24,8 +24,8 @@ export const goldenDataset = {
         title: 'Cloud Services',
         agency: 'DoD',
         source: 'sam_gov',
-        fit_score: 90
-      }
+        fit_score: 90,
+      },
     ];
   }),
 
@@ -38,46 +38,43 @@ export const goldenDataset = {
         title: 'Cloud Services',
         agency: 'DoD',
         source: 'sam_gov',
-        fit_score: 90
-      }
+        fit_score: 90,
+      },
     ];
   }),
 
-  diffOpportunities: vi.fn(
-    (current: Opportunity[], golden: Opportunity[]) => {
-      const byId = (list: Opportunity[]) =>
-        new Map(list.map(o => [o.id, o]));
+  diffOpportunities: vi.fn((current: Opportunity[], golden: Opportunity[]) => {
+    const byId = (list: Opportunity[]) => new Map(list.map((o) => [o.id, o]));
 
-      const currentMap = byId(current);
-      const goldenMap = byId(golden);
+    const currentMap = byId(current);
+    const goldenMap = byId(golden);
 
-      const added: Opportunity[] = [];
-      const removed: Opportunity[] = [];
-      const changed: { id: string; before: Opportunity; after: Opportunity }[] = [];
+    const added: Opportunity[] = [];
+    const removed: Opportunity[] = [];
+    const changed: { id: string; before: Opportunity; after: Opportunity }[] = [];
 
-      for (const [id, g] of goldenMap) {
-        const c = currentMap.get(id);
-        if (!c) {
-          removed.push(g);
-        } else if (JSON.stringify(c) !== JSON.stringify(g)) {
-          changed.push({ id, before: g, after: c });
-        }
+    for (const [id, g] of goldenMap) {
+      const c = currentMap.get(id);
+      if (!c) {
+        removed.push(g);
+      } else if (JSON.stringify(c) !== JSON.stringify(g)) {
+        changed.push({ id, before: g, after: c });
       }
-
-      for (const [id, c] of currentMap) {
-        if (!goldenMap.has(id)) {
-          added.push(c);
-        }
-      }
-
-      return { added, removed, changed };
     }
-  ),
+
+    for (const [id, c] of currentMap) {
+      if (!goldenMap.has(id)) {
+        added.push(c);
+      }
+    }
+
+    return { added, removed, changed };
+  }),
 
   fetchCurrentApiResponse: vi.fn<[], Promise<ApiResponse>>(async () => {
     return {
       opportunities: await goldenDataset.loadCurrentParsedOpportunities(),
-      total: 1
+      total: 1,
     };
   }),
 
@@ -125,8 +122,8 @@ export const goldenDataset = {
         title: titleMatch ? titleMatch[1] : '',
         agency: agencyMatch ? agencyMatch[1] : '',
         source: 'sam_gov',
-        fit_score: scoreMatch ? Number(scoreMatch[1]) : 0
-      }
+        fit_score: scoreMatch ? Number(scoreMatch[1]) : 0,
+      },
     ];
   }),
 
@@ -138,8 +135,8 @@ export const goldenDataset = {
         title: 'Cloud Services',
         agency: 'DoD',
         source: 'sam_gov',
-        fit_score: 90
-      }
+        fit_score: 90,
+      },
     ];
   }),
 
@@ -155,10 +152,9 @@ export const goldenDataset = {
     const currentSet = new Set(current);
     const goldenSet = new Set(golden);
 
-    const missing = [...goldenSet].filter(f => !currentSet.has(f));
-    const unexpected = [...currentSet].filter(f => !goldenSet.has(f));
+    const missing = [...goldenSet].filter((f) => !currentSet.has(f));
+    const unexpected = [...currentSet].filter((f) => !goldenSet.has(f));
 
     return { missing, unexpected };
-  })
+  }),
 };
-

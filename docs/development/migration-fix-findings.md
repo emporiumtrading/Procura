@@ -27,6 +27,7 @@ The original migration script attempted to create RLS policies without checking 
 ### Why This Happened
 
 The original script used:
+
 ```sql
 CREATE POLICY "Users can insert own profile"
   ON public.profiles FOR INSERT
@@ -45,11 +46,11 @@ PostgreSQL **does not have** `CREATE POLICY IF NOT EXISTS`, so re-running this s
 Changed policy creation to use conditional logic:
 
 ```sql
-DO $$ 
+DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM pg_policies 
-    WHERE tablename = 'profiles' 
+    SELECT 1 FROM pg_policies
+    WHERE tablename = 'profiles'
     AND policyname = 'Users can insert own profile'
   ) THEN
     CREATE POLICY "Users can insert own profile"
@@ -61,6 +62,7 @@ END $$;
 ```
 
 **Why this works:**
+
 - Queries `pg_policies` system catalog to check existence
 - Only creates policy if it doesn't exist
 - Safe to run multiple times
@@ -85,13 +87,14 @@ Made the trigger truly idempotent:
 INSERT INTO public.profiles (id, email, full_name, role)
 VALUES (...)
 ON CONFLICT (id) DO UPDATE
-SET 
+SET
   email = EXCLUDED.email,
   full_name = COALESCE(EXCLUDED.full_name, public.profiles.full_name),
   last_active = NOW();
 ```
 
 **Benefits:**
+
 - Handles duplicate signup attempts gracefully
 - Updates email if user changes it
 - Preserves existing `full_name` if new one is null
@@ -104,6 +107,7 @@ SET
 ### New File: `docs/development/troubleshooting-database.md`
 
 Comprehensive guide covering:
+
 - ✅ Auth trigger errors and fixes
 - ✅ Policy duplication errors
 - ✅ Type/enum errors
@@ -119,6 +123,7 @@ Comprehensive guide covering:
 **File:** `supabase/migrations/04_fix_auth.sql`
 
 Now includes:
+
 - ✅ Conditional policy creation (no duplicates)
 - ✅ Proper enum type casting
 - ✅ Idempotent trigger function
@@ -142,14 +147,16 @@ Now includes:
    - Paste in SQL Editor
    - Click **Run**
 4. **Verify success:**
+
    ```sql
-   SELECT 
+   SELECT
      COUNT(DISTINCT au.id) as total_auth_users,
      COUNT(DISTINCT p.id) as total_profiles,
      COUNT(DISTINCT au.id) - COUNT(DISTINCT p.id) as missing_profiles
    FROM auth.users au
    LEFT JOIN public.profiles p ON p.id = au.id;
    ```
+
    Expected: `missing_profiles = 0`
 
 5. **Test signup** in the application
@@ -192,6 +199,7 @@ END $$;
 ### Migration Checklist
 
 Before committing any migration:
+
 - [ ] Can it run multiple times safely?
 - [ ] Does it check for existing objects?
 - [ ] Are type casts explicit (`::type_name`)?
@@ -225,7 +233,7 @@ Before committing any migration:
 ✅ Verified policy `pg_policies` query works  
 ✅ Confirmed enum casting works  
 ✅ Validated profile sync for existing users  
-✅ Confirmed trigger fires on new signups  
+✅ Confirmed trigger fires on new signups
 
 ---
 
