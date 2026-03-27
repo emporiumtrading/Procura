@@ -63,13 +63,11 @@ const LandingPage: React.FC = () => {
 
     setLoading(true);
     setError('');
-    console.log('Login attempt for:', email);
 
     try {
       const { error } = await signIn(email, password);
 
       if (error) {
-        console.error('Login error:', error.message);
         setError(error.message);
 
         // Implement exponential backoff after failed attempts
@@ -82,15 +80,11 @@ const LandingPage: React.FC = () => {
           setLoginCooldown(cooldown);
         }
       } else {
-        // Reset attempts on successful login
         setLoginAttempts(0);
         setLoginCooldown(0);
-        console.log('Login successful!');
-        // Navigate directly to dashboard (MFA removed for simplicity)
         navigate('/dashboard');
       }
-    } catch (err) {
-      console.error('Login exception:', err);
+    } catch {
       setError('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);

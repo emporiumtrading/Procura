@@ -107,7 +107,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     let cancelled = false;
     const safetyTimeout = setTimeout(() => {
       if (!cancelled) {
-        console.warn('Auth initialization timed out after 10s. Continuing without session.');
         setLoading(false);
       }
     }, 10000);
@@ -163,19 +162,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const signIn = async (email: string, password: string) => {
     try {
-      console.log('🔐 Attempting sign in...');
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
-        console.error('❌ Sign in error:', error.message);
         return { error };
       }
 
       if (data.session) {
-        console.log('✅ Login successful');
         setSession(data.session);
         setUser(data.user);
         api.setToken(data.session.access_token);
@@ -183,7 +179,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       return { error };
     } catch (err: any) {
-      console.error('❌ Sign in exception:', err);
       return { error: { message: err.message || 'Authentication failed' } as AuthError };
     }
   };

@@ -23,6 +23,18 @@ logger = structlog.get_logger()
 router = APIRouter(tags=["Admin"])
 
 
+async def _check_redis() -> bool:
+    """Ping Redis and return True if reachable."""
+    try:
+        import redis.asyncio as aioredis
+        r = aioredis.from_url(settings.REDIS_URL, socket_connect_timeout=1)
+        await r.ping()
+        await r.aclose()
+        return True
+    except Exception:
+        return False
+
+
 # ============================================
 # Request/Response Models
 # ============================================
@@ -129,7 +141,7 @@ async def get_dashboard_metrics(
                 "llm_provider": settings.PROCURA_LLM_PROVIDER,
                 "llm_model": settings.LLM_MODEL,
                 "cache_enabled": True,
-                "redis_connected": True  # Would check actual connection
+                "redis_connected": await _check_redis(),
             },
             "timestamp": datetime.now(timezone.utc).isoformat()
         }

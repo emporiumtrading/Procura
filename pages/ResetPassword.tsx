@@ -84,7 +84,6 @@ const ResetPassword: React.FC = () => {
           if (code) {
             const { error } = await supabase.auth.exchangeCodeForSession(code);
             if (error && active) {
-              console.error('Exchange error:', error);
               setError('Reset link is invalid or expired. Request a new one.');
             }
           } else if (accessToken && refreshToken) {
@@ -93,7 +92,6 @@ const ResetPassword: React.FC = () => {
               refresh_token: refreshToken,
             });
             if (error && active) {
-              console.error('Session set error:', error);
               setError('Reset link is invalid or expired. Request a new one.');
             }
           }

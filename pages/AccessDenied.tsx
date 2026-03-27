@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldAlert, ArrowLeft, Lock } from 'lucide-react';
+import { ShieldAlert, ArrowLeft, Mail } from 'lucide-react';
 
 const AccessDenied: React.FC = () => {
   const navigate = useNavigate();
@@ -26,10 +26,13 @@ const AccessDenied: React.FC = () => {
             <ArrowLeft size={18} />
             Return to Dashboard
           </button>
-          <button className="w-full py-3 border border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all flex items-center justify-center gap-2">
-            <Lock size={18} />
+          <a
+            href="mailto:admin@procura.io?subject=Admin%20Access%20Request"
+            className="w-full py-3 border border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
+          >
+            <Mail size={18} />
             Request Admin Access
-          </button>
+          </a>
         </div>
 
         <div className="mt-8 pt-6 border-t border-gray-100">

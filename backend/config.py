@@ -68,7 +68,7 @@ class Settings(BaseSettings):
     # Application Settings
     # ===========================================
     ENVIRONMENT: str = "development"  # development, staging, production
-    DEBUG: bool = True
+    DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
     
     # CORS

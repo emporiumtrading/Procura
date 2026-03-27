@@ -541,7 +541,11 @@ class ProcuraAPI {
       headers,
       body: formData,
     });
-    return response.json();
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return { error: data?.detail || data?.message || `Upload failed (${response.status})`, data: null };
+    }
+    return { data, error: null };
   }
 
   async uploadDocumentVersion(documentId: string, formData: FormData) {
@@ -554,7 +558,11 @@ class ProcuraAPI {
       headers,
       body: formData,
     });
-    return response.json();
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return { error: data?.detail || data?.message || `Upload failed (${response.status})`, data: null };
+    }
+    return { data, error: null };
   }
 
   async updateDocument(id: string, data: Record<string, any>) {

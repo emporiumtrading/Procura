@@ -39,10 +39,13 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; allowedRoles?: strin
     return <Navigate to="/" replace />;
   }
 
-  // Role-based access check (simplified - uses user metadata)
-  // Note: For production, should verify role via backend API
+  // Role-based access check uses app_metadata.role (set server-side, not user-editable).
+  // The backend is the true enforcement point; this redirect is for UX only.
   if (allowedRoles) {
-    const userRole = (user as any).user_metadata?.role || 'viewer';
+    const userRole =
+      (user as any).app_metadata?.role ||
+      (user as any).user_metadata?.role ||
+      'viewer';
     if (!allowedRoles.includes(userRole)) {
       return <Navigate to="/access-denied" replace />;
     }
