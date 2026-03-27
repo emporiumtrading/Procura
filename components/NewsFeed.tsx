@@ -77,6 +77,15 @@ const NewsFeed: React.FC = () => {
       return;
     }
 
+    // Backend returns configured:false when NEWS_API_KEY is not set (200, no error)
+    if ((response.data as any)?.configured === false) {
+      setNotConfigured(true);
+      setArticles([]);
+      setTotalResults(0);
+      setIsLoading(false);
+      return;
+    }
+
     const payload = (response.data as any)?.data as NewsFeedData | undefined;
     setArticles(payload?.articles ?? []);
     setTotalResults(payload?.totalResults ?? 0);

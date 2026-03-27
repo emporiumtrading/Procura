@@ -356,7 +356,12 @@ async def trigger_sync(
                 raise HTTPException(status_code=400, detail=f"Unknown connector: {request.connector_name}")
             connector_names = [requested]
         else:
-            connector_names = [name for name, (_, key_name) in connectors.items() if get_api_key(key_name)]
+            # Include connectors that either have no key requirement (key_name is None)
+            # or have a key configured. This ensures free connectors like grants_gov always run.
+            connector_names = [
+                name for name, (_, key_name) in connectors.items()
+                if key_name is None or get_api_key(key_name)
+            ]
 
         if not connector_names:
             raise HTTPException(
@@ -371,57 +376,61 @@ async def trigger_sync(
 
         admin_supabase = get_supabase_client()
 
-        for name in connector_names:
+        async def _run_one(name: str) -> None:
             connector_class, key_name = connectors[name]
-            resolved_key = get_api_key(key_name)
-            if not resolved_key:
-                errors.append(f"{name}: missing api key")
-                continue
+            resolved_key = get_api_key(key_name) if key_name else None
 
-            # Fetch + normalize opportunities from the external source
-            async with connector_class(api_key=resolved_key) as connector:
-                result = await connector.run_discovery(since)
+            try:
+                # Fetch + normalize opportunities from the external source
+                async with connector_class(api_key=resolved_key) as connector:
+                    result = await connector.run_discovery(since)
 
-            opps = result.get("opportunities") or []
-            if opps:
-                # Identify which external_refs are truly new (no fit_score yet)
-                ext_refs = [o["external_ref"] for o in opps if o.get("external_ref")]
-                existing_refs: set[str] = set()
-                try:
-                    existing_rows = admin_supabase.table("opportunities") \
-                        .select("external_ref") \
-                        .in_("external_ref", ext_refs) \
-                        .not_.is_("fit_score", "null") \
-                        .execute()
-                    existing_refs = {r["external_ref"] for r in (existing_rows.data or [])}
-                except Exception:
-                    pass  # pre-filter check failed — still upsert, just skip auto-qual
-
-                # Batch upsert by external_ref. Prefer service-role client to bypass RLS.
-                try:
-                    admin_supabase.table("opportunities").upsert(opps, on_conflict="external_ref").execute()
-                except Exception as upsert_error:
-                    logger.warning(
-                        "Service-role upsert failed, retrying with request-scoped client",
-                        connector=name,
-                        error=str(upsert_error),
-                    )
-                    supabase.table("opportunities").upsert(opps, on_conflict="external_ref").execute()
-
-                # Collect IDs of genuinely new opportunities for background qualification
-                new_refs = [r for r in ext_refs if r not in existing_refs]
-                if new_refs:
+                opps = result.get("opportunities") or []
+                if opps:
+                    # Identify which external_refs are truly new (no fit_score yet)
+                    ext_refs = [o["external_ref"] for o in opps if o.get("external_ref")]
+                    existing_refs: set[str] = set()
                     try:
-                        new_rows = admin_supabase.table("opportunities") \
-                            .select("id") \
-                            .in_("external_ref", new_refs) \
+                        existing_rows = admin_supabase.table("opportunities") \
+                            .select("external_ref") \
+                            .in_("external_ref", ext_refs) \
+                            .not_.is_("fit_score", "null") \
                             .execute()
-                        all_new_ids.extend(r["id"] for r in (new_rows.data or []))
-                    except Exception as e:
-                        logger.warning("Could not resolve new opportunity IDs", error=str(e)[:200])
+                        existing_refs = {r["external_ref"] for r in (existing_rows.data or [])}
+                    except Exception:
+                        pass  # pre-filter check failed — still upsert, just skip auto-qual
 
-            run_ids.append(f"inline:{name}")
-            logger.info("Discovery sync completed", connector=name, fetched=len(opps), user_id=user["id"])
+                    # Batch upsert by external_ref. Prefer service-role client to bypass RLS.
+                    try:
+                        admin_supabase.table("opportunities").upsert(opps, on_conflict="external_ref").execute()
+                    except Exception as upsert_error:
+                        logger.warning(
+                            "Service-role upsert failed, retrying with request-scoped client",
+                            connector=name,
+                            error=str(upsert_error),
+                        )
+                        supabase.table("opportunities").upsert(opps, on_conflict="external_ref").execute()
+
+                    # Collect IDs of genuinely new opportunities for background qualification
+                    new_refs = [r for r in ext_refs if r not in existing_refs]
+                    if new_refs:
+                        try:
+                            new_rows = admin_supabase.table("opportunities") \
+                                .select("id") \
+                                .in_("external_ref", new_refs) \
+                                .execute()
+                            all_new_ids.extend(r["id"] for r in (new_rows.data or []))
+                        except Exception as e:
+                            logger.warning("Could not resolve new opportunity IDs", error=str(e)[:200])
+
+                run_ids.append(f"inline:{name}")
+                logger.info("Discovery sync completed", connector=name, fetched=len(opps), user_id=user["id"])
+            except Exception as exc:
+                errors.append(f"{name}: {str(exc)[:120]}")
+                logger.warning("Connector sync failed", connector=name, error=str(exc)[:200])
+
+        # Run all connectors in parallel — reduces worst-case from 90 s to ~30 s
+        await asyncio.gather(*[_run_one(name) for name in connector_names])
 
         # Fire auto-qualification in the background — does NOT block the response
         if all_new_ids:

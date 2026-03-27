@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -17,6 +17,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { api } from '../lib/api';
+import { useAuth } from '../lib/AuthContext';
 import NewsFeed from '../components/NewsFeed';
 import {
   type OpportunityRecord,
@@ -109,8 +110,20 @@ const useDashboardLayoutMode = (ref: React.RefObject<HTMLElement | null>) => {
   return mode;
 };
 
+const BACKEND_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8001/api').replace(
+  /\/api$/,
+  ''
+);
+
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const userRole =
+    (user as any)?.app_metadata?.role ||
+    (user as any)?.user_metadata?.role ||
+    'viewer';
+  const canSync = userRole === 'admin' || userRole === 'contract_officer';
+
   const layoutRef = useRef<HTMLDivElement | null>(null);
   const layoutMode = useDashboardLayoutMode(layoutRef);
   const [layoutPref, setLayoutPref] = useState<LayoutPreference>(() => {
@@ -217,6 +230,9 @@ const Dashboard: React.FC = () => {
       return DEFAULT_COLUMNS;
     }
   });
+
+  const [backendReady, setBackendReady] = useState(false);
+  const [isWaking, setIsWaking] = useState(true);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -395,7 +411,7 @@ const Dashboard: React.FC = () => {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [opportunities]);
 
-  const loadOpportunities = async () => {
+  const loadOpportunities = useCallback(async () => {
     setIsLoading(true);
     setNotice(null);
     const response = await api.getOpportunities({ page: 1, limit: 100 });
@@ -411,11 +427,44 @@ const Dashboard: React.FC = () => {
     setOpportunities(list);
     setSelectedIds(new Set());
     setIsLoading(false);
-  };
+  }, []);
+
+  // Ping the backend /health endpoint until it responds (handles Render free-tier cold start).
+  // Once awake, kick off the real data load.
+  useEffect(() => {
+    let cancelled = false;
+    const wake = async () => {
+      for (let i = 0; i < 18; i++) {
+        try {
+          const res = await fetch(`${BACKEND_BASE}/health`, {
+            signal: AbortSignal.timeout(5_000),
+          });
+          if (res.ok && !cancelled) {
+            setBackendReady(true);
+            setIsWaking(false);
+            return;
+          }
+        } catch {
+          // backend still sleeping — retry
+        }
+        if (cancelled) return;
+        await new Promise((r) => setTimeout(r, 5_000));
+      }
+      // Give up after 90 s and try to load anyway
+      if (!cancelled) {
+        setBackendReady(true);
+        setIsWaking(false);
+      }
+    };
+    wake();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
-    loadOpportunities();
-  }, []);
+    if (backendReady) loadOpportunities();
+  }, [backendReady]);
 
   useEffect(() => {
     setListPage(1);
@@ -481,8 +530,8 @@ const Dashboard: React.FC = () => {
     if (syncRemainingSeconds > 0) return;
 
     setIsSyncing(true);
-    setNotice({ kind: 'info', message: 'Sync started. This may take a few seconds...' });
-    setSyncUntilMs(Date.now() + 30_000);
+    setNotice({ kind: 'info', message: 'Sync started. Fetching from SAM.gov and other sources (up to 90 s)…' });
+    setSyncUntilMs(Date.now() + 90_000);
 
     const response = await api.triggerSync();
     if (response.error) {
@@ -727,6 +776,13 @@ const Dashboard: React.FC = () => {
 
   return (
     <div ref={layoutRef} className="flex-1 flex flex-col min-h-0 bg-white">
+      {/* Backend wakeup banner — shown while Render free-tier is cold-starting */}
+      {isWaking && (
+        <div className="flex items-center gap-3 px-4 py-2 bg-amber-50 border-b border-amber-100 text-sm text-amber-800">
+          <Loader2 size={14} className="animate-spin shrink-0 text-amber-600" />
+          <span>Backend is starting up — this takes ~30 s on first load. Hang tight.</span>
+        </div>
+      )}
       <div className="flex-1 flex min-h-0">
         {isDesktop ? (
           /* Desktop: Side-by-side grid layout */
@@ -743,24 +799,30 @@ const Dashboard: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      data-testid="filter-button"
-                      onClick={handleSync}
-                      disabled={isSyncing || syncRemainingSeconds > 0 || isLoading}
-                      className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-60"
-                      title="Fetch latest opportunities from SAM.gov and other sources"
-                    >
-                      {isSyncing ? (
-                        <Loader2 size={16} className="animate-spin" />
-                      ) : (
-                        <RotateCw size={16} />
-                      )}
-                      {syncRemainingSeconds > 0
-                        ? `Sync (${syncRemainingSeconds}s)`
-                        : isSyncing
-                          ? 'Syncing...'
-                          : 'Sync Opportunities'}
-                    </button>
+                    {canSync ? (
+                      <button
+                        data-testid="filter-button"
+                        onClick={handleSync}
+                        disabled={isSyncing || syncRemainingSeconds > 0 || isLoading || isWaking}
+                        className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-60"
+                        title="Fetch latest opportunities from SAM.gov and other sources"
+                      >
+                        {isSyncing ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <RotateCw size={16} />
+                        )}
+                        {syncRemainingSeconds > 0
+                          ? `Sync (${syncRemainingSeconds}s)`
+                          : isSyncing
+                            ? 'Syncing...'
+                            : 'Sync Opportunities'}
+                      </button>
+                    ) : (
+                      <span className="text-xs text-gray-400 px-2" title="Contact an admin to sync new opportunities">
+                        Sync requires officer access
+                      </span>
+                    )}
 
                     <button
                       data-testid="retry-button"
@@ -1085,10 +1147,10 @@ const Dashboard: React.FC = () => {
                         ? 'Click "Sync Opportunities" to fetch the latest from SAM.gov and other sources'
                         : 'Try adjusting your filters or search terms'}
                     </p>
-                    {opportunities.length === 0 && (
+                    {opportunities.length === 0 && canSync && (
                       <button
                         onClick={handleSync}
-                        disabled={isSyncing || syncRemainingSeconds > 0}
+                        disabled={isSyncing || syncRemainingSeconds > 0 || isWaking}
                         className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-all disabled:opacity-60"
                       >
                         {isSyncing ? (
@@ -1102,6 +1164,9 @@ const Dashboard: React.FC = () => {
                             ? 'Syncing...'
                             : 'Sync Opportunities'}
                       </button>
+                    )}
+                    {opportunities.length === 0 && !canSync && (
+                      <p className="text-xs text-gray-400">Contact an admin or contract officer to sync opportunities.</p>
                     )}
                   </div>
                 ) : (
@@ -1712,24 +1777,30 @@ const Dashboard: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      data-testid="filter-button"
-                      onClick={handleSync}
-                      disabled={isSyncing || syncRemainingSeconds > 0 || isLoading}
-                      className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-60"
-                      title="Fetch latest opportunities from SAM.gov and other sources"
-                    >
-                      {isSyncing ? (
-                        <Loader2 size={16} className="animate-spin" />
-                      ) : (
-                        <RotateCw size={16} />
-                      )}
-                      {syncRemainingSeconds > 0
-                        ? `Sync (${syncRemainingSeconds}s)`
-                        : isSyncing
-                          ? 'Syncing...'
-                          : 'Sync Opportunities'}
-                    </button>
+                    {canSync ? (
+                      <button
+                        data-testid="filter-button"
+                        onClick={handleSync}
+                        disabled={isSyncing || syncRemainingSeconds > 0 || isLoading || isWaking}
+                        className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-60"
+                        title="Fetch latest opportunities from SAM.gov and other sources"
+                      >
+                        {isSyncing ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <RotateCw size={16} />
+                        )}
+                        {syncRemainingSeconds > 0
+                          ? `Sync (${syncRemainingSeconds}s)`
+                          : isSyncing
+                            ? 'Syncing...'
+                            : 'Sync Opportunities'}
+                      </button>
+                    ) : (
+                      <span className="text-xs text-gray-400 px-2" title="Contact an admin to sync new opportunities">
+                        Sync requires officer access
+                      </span>
+                    )}
 
                     <button
                       data-testid="retry-button"
@@ -2034,10 +2105,10 @@ const Dashboard: React.FC = () => {
                         ? 'Click "Sync Opportunities" to fetch the latest from SAM.gov and other sources'
                         : 'Try adjusting your filters or search terms'}
                     </p>
-                    {opportunities.length === 0 && (
+                    {opportunities.length === 0 && canSync && (
                       <button
                         onClick={handleSync}
-                        disabled={isSyncing || syncRemainingSeconds > 0}
+                        disabled={isSyncing || syncRemainingSeconds > 0 || isWaking}
                         className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition-all disabled:opacity-60"
                       >
                         {isSyncing ? (
@@ -2051,6 +2122,9 @@ const Dashboard: React.FC = () => {
                             ? 'Syncing...'
                             : 'Sync Opportunities'}
                       </button>
+                    )}
+                    {opportunities.length === 0 && !canSync && (
+                      <p className="text-xs text-gray-400">Contact an admin or contract officer to sync opportunities.</p>
                     )}
                   </div>
                 ) : (

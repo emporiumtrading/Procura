@@ -34,7 +34,8 @@ class ProcuraAPI {
     method: string,
     endpoint: string,
     body?: any,
-    retries = 2
+    retries = 2,
+    timeoutMs = 30_000
   ): Promise<APIResponse<T>> {
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
@@ -48,7 +49,7 @@ class ProcuraAPI {
 
         // Create abort controller for timeout
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
         const response = await fetch(`${API_BASE}${endpoint}`, {
           method,
@@ -107,7 +108,7 @@ class ProcuraAPI {
             continue;
           }
           return {
-            error: `Request timeout after 30 seconds (${method} ${endpoint})`,
+            error: `Request timeout after ${Math.round(timeoutMs / 1000)} seconds (${method} ${endpoint})`,
             status: 0,
           };
         }
@@ -159,7 +160,8 @@ class ProcuraAPI {
       query.set('min_fit_score', params.min_fit_score.toString());
     if (params?.search) query.set('search', params.search);
 
-    return this.request<any>('GET', `/opportunities?${query.toString()}`);
+    // 60 s: backend may be cold-starting on Render free tier
+    return this.request<any>('GET', `/opportunities?${query.toString()}`, undefined, 2, 60_000);
   }
 
   async getOpportunity(id: string) {
@@ -196,7 +198,8 @@ class ProcuraAPI {
   }
 
   async triggerSync(connector_name?: string) {
-    return this.request<any>('POST', '/opportunities/sync', { connector_name });
+    // 90 s: connectors run in parallel but external APIs can be slow
+    return this.request<any>('POST', '/opportunities/sync', { connector_name }, 0, 90_000);
   }
 
   // ============================================

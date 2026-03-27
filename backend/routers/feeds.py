@@ -54,10 +54,8 @@ async def get_news_feed(
     _LAST_NEWS_BY_USER[user["id"]] = now
 
     if _is_placeholder(settings.NEWS_API_KEY):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="NEWS_API_KEY is not configured on the backend",
-        )
+        # Return empty results rather than an error — the UI handles the unconfigured state
+        return {"success": True, "data": {"articles": [], "totalResults": 0}, "configured": False}
 
     base = (settings.NEWS_API_BASE or "https://newsapi.org/v2").rstrip("/")
     # SSRF guard: only allow known external hosts
