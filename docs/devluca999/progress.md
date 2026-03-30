@@ -89,3 +89,61 @@ Progress log and code edits for devluca999.
 - Began stabilizing dashboard/filtering E2E scenarios; remaining Playwright failures are now primarily due to environment (missing Firefox binaries) and a small number of still-tuning UI expectations.
 
 ---
+
+## 2026-03-30
+
+**Focus:** P2 CTO full-system audit — architecture and testing architecture.
+
+**Context:** A full P2 CTO-level audit was run across the entire Procura codebase (Desktop Commander). Two areas were analyzed in depth: overall system architecture and the testing/CI setup.
+
+**Architecture audit — stack confirmed:**
+
+- **Frontend:** React 19 + TypeScript + Vite, deployed to Vercel.
+- **Backend:** Python 3.11 FastAPI, 12 routers, RBAC via dependency injection.
+- **Database:** Supabase PostgreSQL, 13 migration files, RLS on all tables.
+- **Background jobs:** Celery + Redis (worker + beat).
+- **AI:** Anthropic Claude 3.5 Sonnet (primary), OpenAI GPT-4 (fallback), Google Gemini (tertiary), cached via `llm_cache`.
+- **Auth:** Supabase Auth — JWT + PKCE + TOTP MFA.
+- **Security:** Fernet vault for credentials, HMAC-SHA256 signed audit logs; 113 MCR findings remediated (per audit).
+- **Infra:** Docker Compose (5 services), GitHub Actions CI/CD; `render.yaml` and `vercel.json` present.
+
+**Architecture audit — strengths:**
+
+- Well-structured, production-grade separation of concerns.
+- Strong security posture: RLS, RBAC, IDOR protection, file upload scanning, SSRF protection, rate limiting.
+- Solid FastAPI backend: Pydantic validation, structured logging (`structlog`), Sentry integration.
+- All 7 PRD phases marked complete; 7 beyond-PRD modules shipped; 40+ API endpoints, 13 DB migrations, 3 LLM providers; FedRAMP compliance docs.
+
+**Architecture audit — risks (by ID):**
+
+- **RISK-1 (Operational):** Split deployment topology — frontend on Vercel, backend on Render (`render.yaml`); dual pipelines, CORS coordination, env sync risk; health check “unavailable” fallbacks consistent with free-tier cold starts.
+- **RISK-2 (Maintenance):** Migration accumulation — files 04–11 largely iterative diagnostic/fix patches; messy history for fresh environments; consolidation needed.
+- **RISK-3 (Silent failure):** Celery activation conditional on non-localhost `REDIS_URL` in `main.py` — scheduled discovery can be off without notice.
+- **RISK-4 (Structure):** Non-standard Vite layout — `App.tsx`, `index.tsx`, `index.html` at repo root; `src/` thin; higher contributor overhead.
+- **RISK-5 (Maintenance):** `config.py` default `LLM_MODEL` hardcoded to dated `claude-3-5-sonnet-20241022` — needs config updates when models change.
+- **RISK-6 (Resilience):** OpenManus — submission execution paths through `backend/automation/openmanus_client.py`; single point of failure; limited documented fallback if portal DOM or service fails.
+- **RISK-7 (Data model):** `proposal_sections` JSONB on `submissions` (migration 12) — fine for MVP; limits per-section query, search, and versioning if proposal generation becomes core.
+
+**Testing deep dive — what runs in CI:**
+
+- Job 1a: ~61 pytest backend tests (TestClient + `MockSupabaseClient`, builder-pattern DI).
+- Job 1b: ~21 Vitest frontend tests (`api.test.ts`, `components.test.tsx`).
+- Job 2: ~50 Playwright E2E tests across 12 spec files — Chromium, real Supabase test tenant, credential-gated via secrets.
+- Job 3 (main only): Docker build validation (no push).
+
+**Testing deep dive — excluded suites (`vitest.config.ts` and related):**
+
+- `tests/ui/` — Playwright-style UI tests (`dashboard.test.tsx`, `filtering.test.tsx`).
+- `tests/uat/` — contractor workflow, onboarding journey tests.
+- `tests/edge/` — external failure, data corruption, performance.
+- `tests/functional/` — ingestion, tier enforcement (and related paths per config).
+
+**Root causes of exclusions:** Partially scaffolded mocks (`authPipeline`, `externalFailureTesting`, `goldenDataset` in `tests/mocks/`) not fully wired; `tests/ui/` expects `data-testid` selectors (e.g. `opportunity-card`, `pagination-next`, `filter-status`) not present in `pages/Dashboard.tsx` markup per audit.
+
+**Testing observations:** Global 80% Vitest coverage thresholds only enforce files hit by included tests — actual frontend coverage is much lower; `conftest.py` and MockSupabase patterns are strong; E2E helpers hard-fail without credentials; Playwright retries (2 in CI) and single worker reduce flake; `tests/ui/` route-mocked API tests are good smoke candidates without real creds.
+
+**Companion doc:** Launch readiness actions and checklists are in [`next_steps_to_launch.md`](./next_steps_to_launch.md).
+
+— devluca999 / P2 CTO, 2026-03-30
+
+---
